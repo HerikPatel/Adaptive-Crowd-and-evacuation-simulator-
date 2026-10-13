@@ -1,5 +1,6 @@
 import { CONFIG, type RoutingMode } from "../config/simulationConfig";
 import { createMvpMap } from "../maps/mvpMap";
+import { MAPS, type MapId } from "../maps/maps";
 import { CongestionRouter } from "../pathfinding/CongestionRouter";
 import { Density } from "./Density";
 import { Metrics } from "./Metrics";
@@ -22,11 +23,14 @@ export class Simulation {
   replanQueue: Agent[] = [];
   routeSwitchCount = 0;
   metrics = new Metrics(0);
-  constructor(public agentCount = 100) {
+  constructor(
+    public agentCount = 100,
+    public mapId: MapId = "mvp",
+  ) {
     this.reset();
   }
   reset() {
-    this.grid = createMvpMap();
+    this.grid = MAPS[this.mapId].create();
     this.time = 0;
     this.running = false;
     this.agents = [];
@@ -36,8 +40,17 @@ export class Simulation {
     this.metrics = new Metrics(this.agentCount);
     const random = seededRandom(CONFIG.seed),
       slots: { x: number; y: number }[] = [];
-    for (let y = 100; y <= 490; y += 12)
-      for (let x = 60; x <= 350; x += 12) slots.push({ x, y });
+    for (const area of MAPS[this.mapId].spawnAreas)
+      for (let y = area.y1; y <= area.y2; y += 12)
+        for (let x = area.x1; x <= area.x2; x += 12)
+          if (
+            !this.collision.intersectsWall(
+              { x, y },
+              CONFIG.agentRadius + 1,
+              this.grid,
+            )
+          )
+            slots.push({ x, y });
     for (let i = slots.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
       [slots[i], slots[j]] = [slots[j], slots[i]];
@@ -76,9 +89,10 @@ export class Simulation {
         // Closing a door may touch a circle whose center has not yet evacuated.
         // Move it the minimum distance back onto the approach before replanning.
         if (this.collision.intersectsWall(a.position, a.radius, this.grid))
-          a.position.x = Math.min(
-            a.position.x,
-            47 * this.grid.cellSize - a.radius - 0.01,
+          a.position = this.collision.resolveDoorClosure(
+            a.position,
+            a.radius,
+            this.grid,
           );
         if (a.targetExit === "A") {
           a.path = [];

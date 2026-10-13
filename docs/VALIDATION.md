@@ -2,6 +2,20 @@
 
 Verified locally on October 13, 2026, using Windows, Node 24.13.1, and installed Chrome 155.0.8059.40.
 
+## Larger-map update
+
+The default layout is now Distributed wings (70×42), with four seeded spawn areas, a west-facing A exit, and a south-facing B exit. The original map remains selectable. The updated suite passes **23 simulation tests and 3 browser tests**, covering layout switching, Canvas dimensions, distributed spawns, reset, west-facing door closure, and complete evacuation.
+
+New-map fixed-step outcomes, seed 549 / Congestion Aware:
+
+| Population | Closure | Completion (s) | A evacuated | B evacuated |
+| --- | --- | ---: | ---: | ---: |
+| 100 | None | 16.583 | 42 | 58 |
+| 500 | None | 28.450 | 224 | 276 |
+| 500 | A at 8 s | 48.183 | 63 | 437 |
+
+Eight Chrome readout samples on the larger map, same viewport and settings as below: **43–49 FPS at 200 agents** (20.5–23.5 ms), and **40–45 FPS at 500 agents** (22.5–25.0 ms). These are local sample ranges, not hardware-independent guarantees. The original-map results below are retained as the earlier baseline.
+
 ## Automated checks
 
 - `npm run build`: passes TypeScript checking and Vite production compilation.
@@ -18,9 +32,9 @@ The full-simulation scenarios include normal 100/200/500-agent runs, closure at 
 Seed 549, Congestion Aware, both exits open, fixed 1/60 s steps:
 
 | Population | Complete at (simulation seconds) | Exit A | Exit B | Exit switches |
-| --- | ---: | ---: | ---: | ---: |
-| 200 | 28.917 | 75 | 125 | 55 |
-| 500 | 30.383 | 245 | 255 | 72 |
+| ---------- | -------------------------------: | -----: | -----: | ------------: |
+| 200        |                           28.917 |     75 |    125 |            55 |
+| 500        |                           30.383 |    245 |    255 |            72 |
 
 These values are model outcomes, not CPU timings or browser FPS measurements. Population need not scale evacuation time linearly because congestion changes path choice and exit utilization.
 
@@ -28,10 +42,10 @@ These values are model outcomes, not CPU timings or browser FPS measurements. Po
 
 Headless installed Chrome, Vite development server, 1440×1100 viewport, debug overlays off, Congestion Aware. Eight readout samples per population were collected at approximately 0.5 s intervals after the first five simulation seconds:
 
-| Population | Observed rounded FPS | Observed frame interval |
-| --- | ---: | ---: |
-| 200 | 60 in all eight samples | 16.7 ms |
-| 500 | 60 in all eight samples | 16.6–16.7 ms |
+| Population |    Observed rounded FPS | Observed frame interval |
+| ---------- | ----------------------: | ----------------------: |
+| 200        | 60 in all eight samples |                 16.7 ms |
+| 500        | 60 in all eight samples |            16.6–16.7 ms |
 
 These observations exceed the numerical targets in this environment. They do **not** establish performance on a particular mid-range laptop or a worst-case sustained minimum. Follow [the manual performance procedure](MANUAL_TESTS.md) on the presentation laptop, preferably using the production build, and record hardware and browser details. Re-run browser tests to regenerate screenshots and sample attachments in `test-results/`.
 

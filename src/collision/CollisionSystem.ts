@@ -5,6 +5,33 @@ import { SpatialHash } from "../simulation/SpatialHash";
 import { clamp } from "../utils/math";
 import { normalize, type Vector2 } from "../utils/Vector2";
 export class CollisionSystem {
+  /** Resolve a newly closed door on any side, rather than assuming an east exit. */
+  resolveDoorClosure(position: Vector2, radius: number, grid: Grid): Vector2 {
+    const s = grid.cellSize,
+      gap = radius + 0.01;
+    const cell = grid.cell(position);
+    const candidates: Vector2[] = [];
+    for (let y = cell.y - 1; y <= cell.y + 1; y++) {
+      for (let x = cell.x - 1; x <= cell.x + 1; x++) {
+        if (grid.walkable(x, y)) candidates.push(grid.center({ x, y }));
+        else
+          candidates.push(
+            { x: x * s - gap, y: position.y },
+            { x: (x + 1) * s + gap, y: position.y },
+            { x: position.x, y: y * s - gap },
+            { x: position.x, y: (y + 1) * s + gap },
+          );
+      }
+    }
+    candidates.sort(
+      (a, b) =>
+        Math.hypot(a.x - position.x, a.y - position.y) -
+        Math.hypot(b.x - position.x, b.y - position.y),
+    );
+    return (
+      candidates.find((p) => !this.intersectsWall(p, radius, grid)) ?? position
+    );
+  }
   canTravel(from: Vector2, to: Vector2, radius: number, grid: Grid): boolean {
     const length = Math.hypot(to.x - from.x, to.y - from.y),
       steps = Math.max(1, Math.ceil(length / (radius * 0.5)));

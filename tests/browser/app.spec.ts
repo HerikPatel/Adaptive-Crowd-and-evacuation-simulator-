@@ -5,6 +5,7 @@ test("controls, pause, dynamic closure, completion and reset", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await page.getByLabel("Building layout").selectOption("mvp");
   await expect(page.locator("#metric-remaining")).toHaveText("100");
   const initial = await page
     .locator("canvas")
@@ -53,6 +54,39 @@ test("controls, pause, dynamic closure, completion and reset", async ({
       .evaluate((c) => (c as HTMLCanvasElement).toDataURL()),
   ).toBe(initial);
   expect(errors).toEqual([]);
+});
+test("larger map is the default and switching layouts resets canvas and crowd", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await expect(page.getByLabel("Building layout")).toHaveValue("large");
+  await expect(page.locator("canvas")).toHaveAttribute("width", "1400");
+  await expect(page.locator("canvas")).toHaveAttribute("height", "840");
+  await page.screenshot({
+    path: info.outputPath("large-map.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await expect
+    .poll(async () =>
+      parseFloat(await page.locator("#metric-elapsed").innerText()),
+    )
+    .toBeGreaterThan(1);
+  await page.getByRole("button", { name: "Block Exit A", exact: true }).click();
+  await expect
+    .poll(async () =>
+      Number(await page.locator("#metric-switches").innerText()),
+    )
+    .toBeGreaterThan(0);
+  await page.getByLabel("Building layout").selectOption("mvp");
+  await expect(page.locator("canvas")).toHaveAttribute("width", "1000");
+  await expect(page.locator("#status")).toHaveText("Ready");
+  await expect(page.locator("#metric-remaining")).toHaveText("100");
+  await page.getByLabel("Building layout").selectOption("large");
+  await expect(page.locator("canvas")).toHaveAttribute("width", "1400");
+  await expect(
+    page.getByRole("button", { name: "Block Exit A", exact: true }),
+  ).toBeVisible();
 });
 test("stress controls expose actual browser cadence", async ({
   page,

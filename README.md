@@ -20,9 +20,9 @@ npm run preview
 
 ## MVP and controls
 
-- One 50×30 fixed navigation grid with continuously moving circular agents.
-- A shorter route through a narrow bottleneck to Exit A; a longer, wider approach to Exit B.
-- **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected population and routing strategy.
+- **Building layout:** the default **Distributed wings** map is 70×42 cells (1400×840 simulation pixels), with agents spread across four wings linked by a ring and central passages. Exit A faces west, while Exit B faces south. A has a narrow bottleneck and B has a wide approach; the cheaper route depends on an agent's location and congestion.
+- The original **50×30 bottleneck** map remains available for Assignment 3 comparisons, with its shared start area and two east-facing exits. Changing layout resets the run and resizes the Canvas automatically.
+- **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected layout, population, and routing strategy. Positions are reproducible within each layout.
 - **Routing strategy:** Shortest Path or Congestion Aware. Changing strategy resets the run for comparison.
 - **Agent population:** 100 (default), 200, or 500. Changing population resets the run.
 - **Block Exit A / Re-open Exit A** works during a run or while paused. Closing A invalidates its paths immediately and prioritizes affected agents for rerouting. Reopening makes A a candidate at the next cooldown; it does not force a switch.
@@ -40,7 +40,9 @@ src/
   main.ts                    DOM shell, requestAnimationFrame, accumulator
   styles.css                 Responsive control panel and Canvas layout
   config/simulationConfig.ts Tunable constants and routing/exit types
-  maps/mvpMap.ts             Hardcoded floor plan
+  maps/mvpMap.ts             Original bottleneck floor plan
+  maps/largeMap.ts           Larger building with west/south exits
+  maps/maps.ts               Layout catalog, spawn areas, and labels
   simulation/
     Simulation.ts           Seeded spawn, fixed updates, prioritized route queue
     Agent.ts                Continuous agent state
@@ -135,7 +137,7 @@ Build and run `npm run preview`. Use a foreground browser tab at a fixed window 
 - No anticipation of hazards, disabilities, panic, stairs, or one-way flows. Nearby density may include agents separated by an adjacent wall.
 - Local routes can still exhibit temporary crowd hesitation. Cooldowns/hysteresis reduce oscillation without mathematically guaranteeing none.
 - Render catch-up work and debug overlays affect performance; results must be measured on the target laptop.
-- The floor plan and 500-agent maximum are fixed for the MVP.
+- The available floor plans and 500-agent maximum are fixed for the MVP.
 
 ## Future work
 

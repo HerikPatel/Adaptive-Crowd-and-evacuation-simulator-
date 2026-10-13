@@ -1,6 +1,7 @@
 import { Grid, CellType } from "../simulation/Grid";
 import type { Agent } from "../simulation/Agent";
 import { HeatmapRenderer } from "./HeatmapRenderer";
+import { MAPS, type MapLabel } from "../maps/maps";
 export interface RenderOptions {
   paths: boolean;
   spatialHash: boolean;
@@ -14,9 +15,22 @@ export class Renderer {
     densityValues: false,
   };
   constructor(private ctx: CanvasRenderingContext2D) {}
-  render(grid: Grid, agents: Agent[] = [], revision = 0, time = 0) {
+  render(
+    grid: Grid,
+    agents: Agent[] = [],
+    revision = 0,
+    time = 0,
+    labels: MapLabel[] = MAPS.mvp.labels,
+  ) {
     const c = this.ctx,
       s = grid.cellSize;
+    if (
+      c.canvas.width !== grid.width * s ||
+      c.canvas.height !== grid.height * s
+    ) {
+      c.canvas.width = grid.width * s;
+      c.canvas.height = grid.height * s;
+    }
     c.fillStyle = "#101c2b";
     c.fillRect(0, 0, grid.width * s, grid.height * s);
     for (let y = 0; y < grid.height; y++)
@@ -85,15 +99,12 @@ export class Renderer {
     }
     c.fillStyle = "#91a9be";
     c.font = "11px Segoe UI";
-    c.fillText("START AREA", 55, 65);
-    c.fillText("JUNCTION", 514, 164);
-    c.fillText("NARROW PASSAGE", 657, 195);
-    c.fillText("WIDE APPROACH", 693, 407);
-    c.fillStyle = grid.exitABlocked ? "#ef735c" : "#67dec1";
-    c.font = "bold 12px Segoe UI";
-    c.fillText(grid.exitABlocked ? "A · BLOCKED" : "EXIT A", 875, 166);
-    c.fillStyle = "#67dec1";
-    c.fillText("EXIT B", 893, 549);
+    for (const label of labels) {
+      const blocked = label.exit === "A" && grid.exitABlocked;
+      c.fillStyle = label.exit ? (blocked ? "#ef735c" : "#67dec1") : "#91a9be";
+      c.font = label.exit ? "bold 12px Segoe UI" : "11px Segoe UI";
+      c.fillText(blocked ? "EXIT A / BLOCKED" : label.text, label.x, label.y);
+    }
     for (const a of agents) {
       if (a.evacuated) continue;
       c.fillStyle = a.reroutingUntil > time ? "#ffc477" : "#c6e4ff";

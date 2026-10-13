@@ -2,6 +2,16 @@
 
 Record the population, strategy, seed, browser/hardware, total time, peak density, exit counts, exit clear times, average time, route switches, FPS, and frame time for each run. Reset between comparisons.
 
+Select **Original bottleneck** for scenarios 1–3 below. The app now defaults to **Distributed wings**, where some nearby agents can evacuate before the five-second closure.
+
+## Larger distributed building
+
+1. Select Distributed wings. Confirm agents occupy all four wings, with A on the west side and B facing south.
+2. Start with 100 agents and both exits open; verify that both exits are used.
+3. Reset with 500 agents, start, and block A at eight seconds. Agents already evacuated remain counted under A; remaining A-targeted agents must reroute to B.
+4. Let the run complete, checking walls during reversal. Reopening A must respect cooldown and commitment.
+5. Reset to reproduce the initial crowd, then switch layouts and confirm the Canvas resizes and all metrics reset.
+
 ## 1. Normal evacuation
 
 1. Choose 100 agents and Congestion Aware. Reset and Start.

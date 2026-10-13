@@ -1,6 +1,7 @@
 import { Simulation } from "../simulation/Simulation";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
+import { MAPS, type MapId } from "../maps/maps";
 export class Controls {
   private values = new Map<string, HTMLElement>();
   constructor(
@@ -14,6 +15,19 @@ export class Controls {
         "shortest" | "congestion";
       simulation.reset();
     });
+    const mapControl = document.createElement("div");
+    mapControl.innerHTML = `<label for="map">Building layout</label><select id="map">${Object.entries(
+      MAPS,
+    )
+      .map(([id, map]) => `<option value="${id}">${map.name}</option>`)
+      .join("")}</select><p class="note" id="map-description"></p>`;
+    document.querySelector("#controls")!.prepend(mapControl);
+    const mapSelect = document.querySelector<HTMLSelectElement>("#map")!;
+    mapSelect.value = simulation.mapId;
+    mapSelect.addEventListener("change", () => {
+      simulation.mapId = mapSelect.value as MapId;
+      simulation.reset();
+    });
     const population = document.createElement("div");
     population.innerHTML = `<label for="population">Agent population</label><select id="population"><option value="100">100 agents · Default</option><option value="200">200 agents · Target ≥30 FPS</option><option value="500">500 agents · Target ≥20 FPS</option></select>`;
     document.querySelector("#routing")!.after(population);
@@ -22,7 +36,7 @@ export class Controls {
       simulation.reset();
     });
     const debug = document.createElement("div");
-    debug.innerHTML = `<label class="check"><input type="checkbox" id="paths"> Show paths</label><label class="check"><input type="checkbox" id="hash"> Show spatial hash</label><label class="check"><input type="checkbox" id="density"> Show density values (agents/m²)</label><p class="note">Amber agents have just switched exits. Exit A has the shorter, narrow route; B has a wider approach.</p>`;
+    debug.innerHTML = `<label class="check"><input type="checkbox" id="paths"> Show paths</label><label class="check"><input type="checkbox" id="hash"> Show spatial hash</label><label class="check"><input type="checkbox" id="density"> Show density values (agents/m²)</label><p class="note">Amber agents have just switched exits. Exit A has a narrow bottleneck; B has a wider approach.</p>`;
     document.querySelector("#controls")!.append(debug);
     for (const [id, key] of [
       ["paths", "paths"],
@@ -81,6 +95,10 @@ export class Controls {
   update(performance: PerformanceStats) {
     const s = this.simulation,
       m = s.metrics;
+    document.querySelector("#map-description")!.textContent =
+      s.mapId === "large"
+        ? "Agents start across four wings. Exit A faces west; Exit B faces south. Changing layout resets the run."
+        : "Original bottleneck experiment with a shared start area. Changing layout resets the run.";
     document.querySelector("#block")!.textContent = s.grid.exitABlocked
       ? "Re-open Exit A"
       : "Block Exit A";
