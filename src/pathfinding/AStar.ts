@@ -65,7 +65,10 @@ export function findBestPath(
   start: GridPosition,
   mode: RoutingMode = "shortest",
 ): PathResult | null {
-  const a = findPath(grid, start, "A", mode),
-    b = findPath(grid, start, "B", mode);
-  return !a ? b : !b ? a : a.totalCost <= b.totalCost ? a : b;
+  let best: PathResult | null = null;
+  for (const id of grid.exitIds) {
+    const route = findPath(grid, start, id, mode);
+    if (route && (!best || route.totalCost < best.totalCost)) best = route;
+  }
+  return best;
 }

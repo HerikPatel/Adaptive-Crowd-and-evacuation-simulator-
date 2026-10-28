@@ -16,7 +16,8 @@ test("menu is idle and invalid settings do not replace an experiment", () => {
   e.begin(200, "shortest", "open");
   steps(e, 60);
   const before = JSON.stringify(e);
-  assert.throws(() => e.begin(999, "congestion", "closure"));
+  for (const count of [1001, 0, -1, 1.5, NaN])
+    assert.throws(() => e.begin(count, "congestion", "closure"));
   assert.throws(() => e.begin(100, "invalid" as "shortest", "open"));
   assert.throws(() => e.begin(100, "shortest", "invalid" as "open"));
   assert.throws(() => e.begin(100, "shortest", "open", "invalid" as "mvp"));

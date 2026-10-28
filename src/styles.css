@@ -107,7 +107,8 @@ h2 {
   font-weight: 600;
 }
 button,
-select {
+select,
+input[type="number"] {
   font: inherit;
   border: 1px solid #3a5268;
   background: #1b2b3d;
@@ -143,9 +144,29 @@ label {
   font-size: 12px;
   margin: 16px 0 7px;
 }
-select {
+select,
+input[type="number"] {
   width: 100%;
 }
+input[type="number"] { cursor: text; }
+.error { color: #ffb49c; }
+.error:empty { display: none; }
+#editor { padding: 18px 22px 6px; border-bottom: 1px solid #263747; }
+.editor-heading, .editor-tools, .editor-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.editor-heading { justify-content: space-between; font-size: 12px; margin-bottom: 12px; }
+#layout-state { color: #91a4b7; }
+.editor-tools button { flex: 1; white-space: nowrap; }
+.editor-tools [aria-pressed="true"] { border-color: #62dbc1; color: #62dbc1; background: #193c3d; }
+.editor-actions { margin-top: 12px; align-items: end; }
+.editor-actions > div { flex: 1; min-width: 130px; }
+.editor-actions label { margin-top: 0; }
+#editor-help { margin-bottom: 8px; }
+#editor-message { font-size: 12px; min-height: 2.5em; line-height: 1.5; }
+canvas.editing { cursor: crosshair; touch-action: none; }
+canvas:focus-visible { outline: 2px solid #62dbc1; outline-offset: -2px; }
+#exit-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#exit-controls .block { margin: 0; font-size: 12px; }
+#exit-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
 .block {
   width: 100%;
   color: #ffb49c;

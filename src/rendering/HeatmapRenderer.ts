@@ -3,11 +3,13 @@ export class HeatmapRenderer {
   private canvas = document.createElement("canvas");
   private ctx = this.canvas.getContext("2d")!;
   private lastRevision = -1;
+  private lastLayoutRevision = -1;
   private lastGrid: Grid | null = null;
   draw(ctx: CanvasRenderingContext2D, grid: Grid, revision: number) {
-    if (this.lastGrid !== grid || this.lastRevision !== revision) {
+    if (this.lastGrid !== grid || this.lastRevision !== revision || this.lastLayoutRevision !== grid.layoutRevision) {
       this.lastGrid = grid;
       this.lastRevision = revision;
+      this.lastLayoutRevision = grid.layoutRevision;
       this.canvas.width = grid.width * grid.cellSize;
       this.canvas.height = grid.height * grid.cellSize;
       const c = this.ctx,

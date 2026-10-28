@@ -1,4 +1,4 @@
-import { CONFIG, type RoutingMode } from "../config/simulationConfig";
+import { CONFIG, type ExitId, type RoutingMode } from "../config/simulationConfig";
 import { createMvpMap } from "../maps/mvpMap";
 import { MAPS, type MapId } from "../maps/maps";
 import { CongestionRouter } from "../pathfinding/CongestionRouter";
@@ -9,7 +9,7 @@ import { seededRandom } from "../utils/math";
 import { CollisionSystem } from "../collision/CollisionSystem";
 import { SpatialHash } from "./SpatialHash";
 import { Agent } from "./Agent";
-import { CellType } from "./Grid";
+import { Grid } from "./Grid";
 export class Simulation {
   grid = createMvpMap();
   agents: Agent[] = [];
@@ -23,6 +23,31 @@ export class Simulation {
   replanQueue: Agent[] = [];
   routeSwitchCount = 0;
   metrics = new Metrics(0);
+  private customLayouts = new Map<MapId, Grid>();
+  get hasCustomLayout() { return this.customLayouts.has(this.mapId); }
+  layoutFor(mapId: MapId = this.mapId): Grid {
+    return this.customLayouts.get(mapId)?.cloneLayout(false) ?? MAPS[mapId].create();
+  }
+  spawnSlots(grid: Grid, mapId: MapId = this.mapId) {
+    const slots: { x: number; y: number }[] = [];
+    for (const area of MAPS[mapId].spawnAreas)
+      for (let y = area.y1; y <= area.y2; y += 12)
+        for (let x = area.x1; x <= area.x2; x += 12) {
+          const p = { x, y }, cell = grid.cell(p);
+          if (!grid.exitAt(cell.x, cell.y) &&
+              !this.collision.intersectsWall(p, CONFIG.agentRadius + 1, grid))
+            slots.push(p);
+        }
+    return slots;
+  }
+  populationLimit(mapId: MapId = this.mapId, grid = this.layoutFor(mapId)) {
+    return Math.min(CONFIG.maxPopulation, this.spawnSlots(grid, mapId).length);
+  }
+  validatePopulation(count: number, mapId: MapId = this.mapId, grid = this.layoutFor(mapId)) {
+    const limit = this.populationLimit(mapId, grid);
+    if (!Number.isInteger(count) || count < 1 || count > limit)
+      throw new Error(`Choose a whole-number crowd size from 1 to ${limit} for this layout.`);
+  }
   constructor(
     public agentCount = 100,
     public mapId: MapId = "mvp",
@@ -30,27 +55,18 @@ export class Simulation {
     this.reset();
   }
   reset() {
-    this.grid = MAPS[this.mapId].create();
+    const grid = this.layoutFor();
+    this.validatePopulation(this.agentCount, this.mapId, grid);
+    this.grid = grid;
     this.time = 0;
     this.running = false;
     this.agents = [];
     this.replanQueue = [];
     this.routeSwitchCount = 0;
     this.density = new Density();
-    this.metrics = new Metrics(this.agentCount);
+    this.metrics = new Metrics(this.agentCount, this.grid.exitIds);
     const random = seededRandom(CONFIG.seed),
-      slots: { x: number; y: number }[] = [];
-    for (const area of MAPS[this.mapId].spawnAreas)
-      for (let y = area.y1; y <= area.y2; y += 12)
-        for (let x = area.x1; x <= area.x2; x += 12)
-          if (
-            !this.collision.intersectsWall(
-              { x, y },
-              CONFIG.agentRadius + 1,
-              this.grid,
-            )
-          )
-            slots.push({ x, y });
+      slots = this.spawnSlots(this.grid);
     for (let i = slots.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
       [slots[i], slots[j]] = [slots[j], slots[i]];
@@ -80,8 +96,24 @@ export class Simulation {
     }
   }
   setExitABlocked(blocked: boolean) {
-    if (blocked === this.grid.exitABlocked) return;
-    this.grid.exitABlocked = blocked;
+    return this.setExitBlocked("A", blocked);
+  }
+  setExitBlocked(id: ExitId, blocked: boolean): { ok: boolean; message: string } {
+    if (!this.grid.exitIds.includes(id)) return { ok: false, message: `Exit ${id} does not exist.` };
+    if (blocked === this.grid.blockedExits.has(id)) return { ok: true, message: "" };
+    const candidate = this.grid.cloneLayout();
+    candidate.setExitBlocked(id, blocked);
+    if (blocked) {
+      const issue = this.layoutConnectivityIssue(candidate);
+      if (issue) return { ok: false, message: issue };
+      for (const a of this.agents) {
+        if (a.evacuated) continue;
+        const p = this.collision.resolveDoorClosure(a.position, a.radius, candidate);
+        if (this.collision.intersectsWall(p, a.radius, candidate))
+          return { ok: false, message: "An agent is in this doorway. Try again after it moves." };
+      }
+    }
+    this.grid.setExitBlocked(id, blocked);
     if (blocked) {
       const urgent: Agent[] = [];
       for (const a of this.agents) {
@@ -94,7 +126,7 @@ export class Simulation {
             a.radius,
             this.grid,
           );
-        if (a.targetExit === "A") {
+        if (a.targetExit === id || a.path.slice(a.pathIndex).some((p) => this.grid.exitAt(p.x, p.y) === id)) {
           a.path = [];
           a.pathIndex = 0;
           a.velocity = { x: 0, y: 0 };
@@ -109,6 +141,41 @@ export class Simulation {
       ];
       for (const a of urgent) a.queued = true;
     }
+    return { ok: true, message: `Exit ${id} ${blocked ? "blocked" : "reopened"}.` };
+  }
+  layoutConnectivityIssue(grid: Grid): string | null {
+    if (!grid.exitIds.some((id) => !grid.blockedExits.has(id)))
+      return "Keep at least one exit open.";
+    const reachable = grid.reachableFromExits();
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++)
+        if (grid.walkable(x, y) && !reachable[grid.index(x, y)])
+          return "This change would cut off an area from every open exit.";
+    return null;
+  }
+  applyEditedLayout(grid: Grid) {
+    this.customLayouts.set(this.mapId, grid.cloneLayout(false));
+    this.grid = grid;
+    const peak = this.density.peak;
+    this.density = new Density();
+    this.density.peak = peak;
+    for (const id of grid.exitIds) this.metrics.addExit(id);
+    for (const [id, record] of this.metrics.byExit)
+      if (!grid.exitIds.includes(id) && record.count === 0) this.metrics.byExit.delete(id);
+    this.replanQueue = [];
+    for (const a of this.agents) {
+      a.path = [];
+      a.pathIndex = 0;
+      a.velocity = { x: 0, y: 0 };
+      a.queued = false;
+      a.nextReplanTime = 0;
+      this.enqueue(a);
+    }
+    this.rebuildHash();
+  }
+  restoreOriginalLayout() {
+    this.customLayouts.delete(this.mapId);
+    this.reset();
   }
   processReplans() {
     let processed = 0;
@@ -180,18 +247,12 @@ export class Simulation {
     for (const { agent: a, position } of movements) {
       a.position = position;
       const cell = this.grid.cell(a.position),
-        type = this.grid.type(cell.x, cell.y);
-      if (
-        (type === CellType.ExitA && !this.grid.exitABlocked) ||
-        type === CellType.ExitB
-      ) {
+        exit = this.grid.exitAt(cell.x, cell.y);
+      if (exit && !this.grid.blockedExits.has(exit)) {
         a.evacuated = true;
         a.evacuationTime = this.time;
         a.velocity = { x: 0, y: 0 };
-        this.metrics.recordEvacuation(
-          type === CellType.ExitA ? "A" : "B",
-          this.time,
-        );
+        this.metrics.recordEvacuation(exit, this.time);
       }
     }
     if (this.agents.every((a) => a.evacuated)) this.running = false;

@@ -11,24 +11,26 @@ export class Experiment {
   screen: Screen = "menu";
   scenario: Scenario = "open";
   closureTriggered = false;
+  closureMessage = "";
   revision = 0;
 
-  begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId) {
+  begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId, running = true) {
     // Validate before changing a running experiment.
-    if (![100, 200, 500].includes(count)) throw new Error("Unsupported population");
     if (mode !== "shortest" && mode !== "congestion") throw new Error("Unknown routing strategy");
     if (scenario !== "open" && scenario !== "closure") throw new Error("Unknown scenario");
     if (!Object.hasOwn(MAPS, mapId)) throw new Error("Unknown building layout");
+    this.simulation.validatePopulation(count, mapId);
     this.simulation.agentCount = count;
     this.simulation.mode = mode;
     this.simulation.mapId = mapId;
     this.scenario = scenario;
-    this.restart(true);
+    this.restart(running);
   }
 
   restart(running = false) {
     this.simulation.reset();
     this.closureTriggered = false;
+    this.closureMessage = "";
     this.screen = "simulation";
     this.simulation.running = running;
     this.revision++;
@@ -57,7 +59,8 @@ export class Experiment {
     if (this.screen !== "simulation" || !s.running) return;
     // Apply before step 301, matching the existing five-second closure scenario.
     if (this.scenario === "closure" && !this.closureTriggered && s.time + 1e-9 >= 5) {
-      s.setExitABlocked(true);
+      const result = s.setExitABlocked(true);
+      this.closureMessage = result.ok ? "" : result.message;
       this.closureTriggered = true;
     }
     s.update(dt);

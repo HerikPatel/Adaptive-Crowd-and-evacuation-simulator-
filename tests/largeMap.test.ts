@@ -46,6 +46,7 @@ for (const [count, blocked] of [
   [100, false],
   [500, false],
   [500, true],
+  [1000, false],
 ] as const)
   test(`large map evacuates ${count} agents with closure=${blocked}`, (t) => {
     const s = new Simulation(count, "large");

@@ -19,6 +19,8 @@ export const CONFIG = {
   wallWeight: 0.35,
   waypointThreshold: 5,
   maxFrameDelta: 0.1,
+  maxPopulation: 1000,
 } as const;
 export type RoutingMode = "shortest" | "congestion";
-export type ExitId = "A" | "B";
+export const EXIT_IDS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
+export type ExitId = (typeof EXIT_IDS)[number];

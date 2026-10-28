@@ -68,16 +68,17 @@ export class Renderer {
             }
             c.stroke();
           }
-        if (type === CellType.ExitA || type === CellType.ExitB) {
+        const exit = grid.exitAt(x, y);
+        if (exit) {
           c.fillStyle =
-            type === CellType.ExitA && grid.exitABlocked
+            grid.blockedExits.has(exit)
               ? "#ef735c"
               : "#67dec1";
           c.fillRect(x * s, y * s, s, s);
           c.fillStyle = "#0d2b29";
           c.font = "bold 14px Segoe UI";
           c.fillText(
-            type === CellType.ExitA ? (grid.exitABlocked ? "×" : "A") : "B",
+            grid.blockedExits.has(exit) ? "×" : exit,
             x * s + 5,
             y * s + 15,
           );
@@ -100,10 +101,10 @@ export class Renderer {
     c.fillStyle = "#91a9be";
     c.font = "11px Segoe UI";
     for (const label of labels) {
-      const blocked = label.exit === "A" && grid.exitABlocked;
+      const blocked = label.exit && grid.blockedExits.has(label.exit);
       c.fillStyle = label.exit ? (blocked ? "#ef735c" : "#67dec1") : "#91a9be";
       c.font = label.exit ? "bold 12px Segoe UI" : "11px Segoe UI";
-      c.fillText(blocked ? "EXIT A / BLOCKED" : label.text, label.x, label.y);
+      c.fillText(blocked ? `EXIT ${label.exit} / BLOCKED` : label.text, label.x, label.y);
     }
     for (const a of agents) {
       if (a.evacuated) continue;

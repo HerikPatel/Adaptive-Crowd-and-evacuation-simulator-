@@ -9,6 +9,7 @@ test("controls, pause, dynamic closure, completion and reset", async ({
   await expect(page.locator("#simulation-screen")).toBeHidden();
   await page.locator("#setup-map").selectOption("mvp");
   await page.getByRole("button", { name: "Start experiment", exact: true }).click();
+  await expect(page.locator("#map")).toHaveValue("mvp");
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.locator("#status")).toHaveText("Ready");
   await expect(page.locator("#metric-remaining")).toHaveText("100");
@@ -119,7 +120,8 @@ test("stress controls expose actual browser cadence", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Start experiment", exact: true }).click();
   for (const count of [200, 500]) {
-    await page.locator("#population").selectOption(String(count));
+    await page.locator("#population").fill(String(count));
+    await page.getByRole("button", { name: "Apply crowd size", exact: true }).click();
     await expect(page.locator("#metric-remaining")).toHaveText(String(count));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect
@@ -166,7 +168,7 @@ test("setup, scheduled closure, reopening, reset and mobile navigation", async (
   await page.screenshot({ path: info.outputPath("setup.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   const setup = page.locator("#menu-screen");
-  await setup.getByLabel("Agent population", { exact: true }).selectOption("200");
+  await setup.getByLabel("Agent population", { exact: true }).fill("200");
   await setup.getByLabel("Routing strategy", { exact: true }).selectOption("shortest");
   await setup.getByLabel("Exit scenario", { exact: true }).selectOption("closure");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
