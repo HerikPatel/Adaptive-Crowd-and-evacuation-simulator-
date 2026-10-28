@@ -10,6 +10,9 @@
 * {
   box-sizing: border-box;
 }
+[hidden] {
+  display: none !important;
+}
 body {
   margin: 0;
   padding: 36px 4vw;
@@ -64,6 +67,8 @@ aside {
   justify-content: space-between;
   font-size: 12px;
   border-bottom: 1px solid #263747;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 #status {
   color: #63dbc4;
@@ -191,7 +196,94 @@ input:focus-visible {
   outline: 2px solid #62dbc1;
   outline-offset: 3px;
 }
+.screen-card {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px;
+  border: 1px solid #263747;
+  border-radius: 12px;
+  background: #101c2b;
+}
+#menu-screen {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 48px;
+}
+.screen-card h2 {
+  font-size: 30px;
+  margin: 18px 0;
+  line-height: 1.2;
+}
+.screen-card h3 {
+  margin: 0 0 20px;
+  font-size: 17px;
+}
+[tabindex="-1"]:focus {
+  outline: none;
+}
+.screen-card p, .instructions {
+  line-height: 1.7;
+}
+.instructions {
+  padding-left: 20px;
+  color: #aebdca;
+  font-size: 14px;
+}
+.instructions li {
+  padding: 10px 0 10px 6px;
+}
+.instructions strong {
+  display: block;
+  color: #dce7ed;
+}
+.field-help {
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 8px 0 18px;
+}
+.launch, .menu-button {
+  width: 100%;
+}
+.launch {
+  margin-top: 12px;
+  padding: 14px;
+}
+.run-progress {
+  padding: 14px 22px 0;
+  font-size: 12px;
+  color: #aebdca;
+}
+.run-progress label {
+  margin: 10px 0 6px;
+  display: flex;
+  justify-content: space-between;
+}
+progress {
+  width: 100%;
+  height: 7px;
+  accent-color: #62dbc1;
+}
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 26px 0;
+}
+.result-grid .metric {
+  padding: 20px;
+}
+.result-grid .metric span {
+  font-size: 12px;
+}
+.result-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 @media (max-width: 1000px) {
+  #menu-screen {
+    gap: 28px;
+  }
   main {
     grid-template-columns: 1fr;
   }
@@ -207,6 +299,29 @@ input:focus-visible {
   }
 }
 @media (max-width: 550px) {
+  #menu-screen {
+    grid-template-columns: 1fr;
+  }
+  .screen-card {
+    padding: 22px;
+  }
+  .screen-card h2 {
+    font-size: 25px;
+  }
+  .result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .result-grid .metric {
+    padding: 12px;
+  }
+  .result-grid .metric strong {
+    font-size: 17px;
+  }
+  .stage-bar, .run-progress {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
   body {
     padding: 20px 12px;
   }
@@ -219,5 +334,9 @@ input:focus-visible {
   }
   footer {
     display: block;
+  }
+  footer span {
+    display: block;
+    margin-top: 6px;
   }
 }

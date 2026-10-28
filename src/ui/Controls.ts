@@ -1,19 +1,20 @@
-import { Simulation } from "../simulation/Simulation";
+import { Experiment } from "../simulation/Experiment";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
 import { MAPS, type MapId } from "../maps/maps";
 export class Controls {
   private values = new Map<string, HTMLElement>();
   constructor(
-    private simulation: Simulation,
+    private experiment: Experiment,
     options: RenderOptions,
   ) {
+    const simulation = experiment.simulation;
     document.querySelector("#controls")!.innerHTML =
       `<label for="routing">Routing strategy</label><select id="routing"><option value="shortest">Shortest Path</option><option value="congestion" selected>Congestion Aware</option></select><div class="buttons"><button id="start" class="primary">Start</button><button id="pause">Pause</button><button id="reset">Reset</button></div><button id="block" class="block">Block Exit A</button><p class="note">Close Exit A during the run to test dynamic rerouting. Changing strategy resets the experiment to the same seed.</p>`;
     document.querySelector("#routing")!.addEventListener("change", (e) => {
       simulation.mode = (e.target as HTMLSelectElement).value as
         "shortest" | "congestion";
-      simulation.reset();
+      experiment.restart();
     });
     const mapControl = document.createElement("div");
     mapControl.innerHTML = `<label for="map">Building layout</label><select id="map">${Object.entries(
@@ -26,14 +27,14 @@ export class Controls {
     mapSelect.value = simulation.mapId;
     mapSelect.addEventListener("change", () => {
       simulation.mapId = mapSelect.value as MapId;
-      simulation.reset();
+      experiment.restart();
     });
     const population = document.createElement("div");
     population.innerHTML = `<label for="population">Agent population</label><select id="population"><option value="100">100 agents · Default</option><option value="200">200 agents · Target ≥30 FPS</option><option value="500">500 agents · Target ≥20 FPS</option></select>`;
     document.querySelector("#routing")!.after(population);
     document.querySelector("#population")!.addEventListener("change", (e) => {
       simulation.agentCount = Number((e.target as HTMLSelectElement).value);
-      simulation.reset();
+      experiment.restart();
     });
     const debug = document.createElement("div");
     debug.innerHTML = `<label class="check"><input type="checkbox" id="paths"> Show paths</label><label class="check"><input type="checkbox" id="hash"> Show spatial hash</label><label class="check"><input type="checkbox" id="density"> Show density values (agents/m²)</label><p class="note">Amber agents have just switched exits. Exit A has a narrow bottleneck; B has a wider approach.</p>`;
@@ -50,15 +51,14 @@ export class Controls {
           (e) => (options[key] = (e.target as HTMLInputElement).checked),
         );
     document.querySelector("#start")!.addEventListener("click", () => {
-      if (!simulation.agents.every((a) => a.evacuated))
-        simulation.running = true;
+      experiment.resume();
     });
     document
       .querySelector("#pause")!
-      .addEventListener("click", () => (simulation.running = false));
+      .addEventListener("click", () => experiment.pause());
     document
       .querySelector("#reset")!
-      .addEventListener("click", () => simulation.reset());
+      .addEventListener("click", () => experiment.restart());
     document
       .querySelector("#block")!
       .addEventListener("click", () =>
@@ -93,7 +93,7 @@ export class Controls {
       );
   }
   update(performance: PerformanceStats) {
-    const s = this.simulation,
+    const s = this.experiment.simulation,
       m = s.metrics;
     document.querySelector("#map-description")!.textContent =
       s.mapId === "large"
@@ -137,5 +137,14 @@ export class Controls {
       !s.running;
     document.querySelector("#performance")!.textContent =
       `${performance.fps.toFixed(0)} FPS / ${performance.frameTime.toFixed(1)} ms / ${m.remainingAgents} active`;
+    const progress = document.querySelector<HTMLProgressElement>("#evacuation-progress")!;
+    progress.max = s.agentCount;
+    progress.value = m.evacuatedCount;
+    document.querySelector("#progress-label")!.textContent = `${m.evacuatedCount} / ${s.agentCount}`;
+    document.querySelector("#scenario-status")!.textContent = this.experiment.scenario === "open"
+      ? "Open-exit experiment · Exit A can be changed manually"
+      : this.experiment.closureTriggered
+        ? `Scheduled closure applied · Exit A is ${s.grid.exitABlocked ? "blocked" : "reopened"}`
+        : `Exit A closes in ${Math.max(0, 5 - s.time).toFixed(1)} simulation seconds`;
   }
 }
