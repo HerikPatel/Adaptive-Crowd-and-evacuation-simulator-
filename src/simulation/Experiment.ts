@@ -3,7 +3,7 @@ import { Simulation } from "./Simulation";
 import { MAPS, type MapId } from "../maps/maps";
 
 export type Scenario = "open" | "closure";
-export type Screen = "menu" | "simulation" | "results";
+export type Screen = "menu" | "simulation" | "results" | "stadium";
 
 /** Application lifecycle and timed inputs, separate from the crowd model. */
 export class Experiment {
@@ -39,6 +39,12 @@ export class Experiment {
   showMenu() {
     this.simulation.running = false;
     this.screen = "menu";
+    this.revision++;
+  }
+
+  showStadium() {
+    this.simulation.running = false;
+    this.screen = "stadium";
     this.revision++;
   }
 

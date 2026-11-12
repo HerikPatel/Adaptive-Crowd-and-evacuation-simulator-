@@ -5,8 +5,9 @@ import { Controls } from "./ui/Controls";
 import { PerformanceStats } from "./ui/PerformanceStats";
 import { CONFIG } from "./config/simulationConfig";
 import { Screens } from "./ui/Screens";
-import { MAPS } from "./maps/maps";
+import { MAPS, MAP_CHOICES } from "./maps/maps";
 import { Editor } from "./ui/Editor";
+import { StadiumViewer } from "./ui/StadiumViewer";
 document.querySelector<HTMLDivElement>("#app")!.innerHTML =
   `<header><span class="eyebrow">CS 549 / ASSIGNMENT 04 · ALPHA</span><h1>Evacuation Lab<span>Adaptive crowd simulation</span></h1><p>Explore how route choice changes when a crowd meets a bottleneck.</p></header>
   <section id="menu-screen" class="screen-card" aria-labelledby="menu-heading">
@@ -15,12 +16,15 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML =
     <ol class="instructions"><li><strong>Choose your experiment.</strong> Enter a crowd size, routing strategy, and exit scenario.</li><li><strong>Shape the building.</strong> Choose Edit layout first, or select a drawing tool to pause a run. Click or drag to edit walls and exits.</li><li><strong>Review the outcome.</strong> Compare evacuation time, exit use, and congestion, then run another experiment.</li></ol>
     <p class="note">Every new run uses the same starting seed. Repeat the same inputs to reproduce an experiment.</p></div>
     <form id="setup-form"><h3>Experiment setup</h3>
-    <label for="setup-map">Building layout</label><select id="setup-map">${Object.entries(MAPS).map(([id, map]) => `<option value="${id}">${map.name}</option>`).join("")}</select>
+    <label for="setup-map">Building layout</label><select id="setup-map" aria-describedby="setup-map-help">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
+    <p id="setup-map-help" class="field-help" hidden>Explore SHI Stadium's seating levels, gates and proposed connections. This map is a schematic preview; crowd simulation is not available yet.</p>
+    <fieldset id="setup-simulation-settings" aria-label="Simulation settings">
     <label for="setup-population">Agent population</label><input id="setup-population" type="number" min="1" max="1000" step="1" value="100" required aria-describedby="setup-population-help"><p id="setup-population-help" class="field-help"></p>
     <label for="setup-routing">Routing strategy</label><select id="setup-routing" aria-describedby="routing-help"><option value="congestion">Congestion Aware</option><option value="shortest">Shortest Path</option></select><p id="routing-help" class="field-help">Shortest Path minimizes distance. Congestion Aware also considers nearby crowd density.</p>
     <label for="setup-scenario">Exit scenario</label><select id="setup-scenario" aria-describedby="scenario-help"><option value="open">All exits open</option><option value="closure">Close Exit A at 5 seconds</option></select><p id="scenario-help" class="field-help">The closure uses simulation time, so pausing also pauses the countdown. You can control every exit manually.</p>
-    <p id="setup-error" class="error" role="alert"></p><button type="submit" class="primary launch">Start experiment</button><button type="submit" id="edit-before-start" class="launch">Edit layout first</button></form>
+    </fieldset><p id="setup-error" class="error" role="alert"></p><button type="submit" id="setup-launch" class="primary launch">Start experiment</button><button type="submit" id="edit-before-start" class="launch">Edit layout first</button></form>
   </section>
+  <section id="stadium-screen" hidden aria-labelledby="stadium-heading"></section>
   <main id="simulation-screen" hidden><section class="stage" aria-labelledby="simulation-heading"><div class="stage-bar"><strong id="simulation-heading" tabindex="-1">02 / Building overview</strong><span id="status" role="status">Ready</span><span id="performance"></span></div>
   <div class="run-progress"><span id="scenario-status"></span><label for="evacuation-progress">Evacuated <span id="progress-label">0 / 100</span></label><progress id="evacuation-progress" max="100" value="0"></progress></div>
   <div id="editor"></div><canvas id="world" width="1000" height="600" tabindex="0" aria-label="Crowd evacuation simulation and layout editor" aria-describedby="editor-help"></canvas><div class="legend"><span>● Active agent</span><span>● Rerouting</span><span class="gradient"></span> Low → High congestion</div></section><aside><h2>Experiment controls</h2><div id="controls"></div><button type="button" data-menu class="menu-button">Back to setup</button><p class="field-help">Edited layouts stay available during this visit. Reloading the page restores the presets.</p><h2>Live measurements</h2><div id="metrics"></div><div id="exit-metrics"></div></aside></main>
@@ -34,6 +38,7 @@ const experiment = new Experiment();
 const simulation = experiment.simulation;
 const renderer = new Renderer(ctx);
 const controls = new Controls(experiment, renderer.options);
+new StadiumViewer(document.querySelector<HTMLElement>("#stadium-screen")!);
 const screens = new Screens(experiment);
 const editor = new Editor(experiment, canvas);
 const stats = new PerformanceStats();

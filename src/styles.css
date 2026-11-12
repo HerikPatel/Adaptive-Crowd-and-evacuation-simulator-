@@ -301,7 +301,85 @@ progress {
   gap: 12px;
   flex-wrap: wrap;
 }
+.stadium-eyebrow { color: #ff98a4; }
+#setup-simulation-settings { border: 0; padding: 0; margin: 0; min-width: 0; }
+#stadium-screen { max-width: 1500px; margin: auto; }
+.stadium-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 0 0 22px; }
+.stadium-heading-row h2 { font-size: 30px; margin: 10px 0; }
+.stadium-heading-row p { margin-bottom: 0; line-height: 1.6; }
+.stadium-heading-row > button { flex-shrink: 0; }
+.stadium-badge { display: inline-block; vertical-align: middle; font-size: 11px; font-weight: 400; color: #ffb1bb; border: 1px solid #6b3a49; border-radius: 20px; padding: 6px 10px; margin-left: 10px; }
+.stadium-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 20px; align-items: start; }
+.stadium-toolbar { padding: 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #263747; }
+.stadium-layers, .stadium-zoom { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.stadium-toolbar button { font-size: 12px; min-height: 40px; }
+.stadium-layers [aria-pressed="true"] { background: #193c3d; border-color: #62dbc1; color: #8debd7; }
+.stadium-zoom output { font-size: 11px; min-width: 36px; text-align: center; color: #afc0cc; }
+.stadium-zoom [data-zoom="in"], .stadium-zoom [data-zoom="out"] { width: 40px; font-size: 18px; padding: 4px; }
+.stadium-layer-description { margin: 0; padding: 14px 18px 0; min-height: 50px; font-size: 12px; line-height: 1.6; }
+.stadium-svg { display: block; width: 100%; aspect-ratio: 1200 / 880; background: #101c2b; touch-action: none; cursor: grab; }
+.stadium-svg:active { cursor: grabbing; }
+.stadium-svg text { text-anchor: middle; font-size: 15px; fill: #d9e5ee; pointer-events: none; }
+.stadium-context { pointer-events: none; }
+.stadium-compass path { stroke: #8a9dac; fill: #8a9dac; stroke-width: 1.5; }
+.stadium-compass text { font-size: 16px; font-weight: 600; }
+.stadium-reference-area { fill: #172433; stroke: #405163; stroke-dasharray: 4 4; }
+.stadium-svg .stadium-caption { fill: #a7b8c5; font-size: 12px; }
+.stadium-svg .stadium-deck-name, .stadium-svg .stadium-side-name { fill: #94aabd; font-size: 12px; letter-spacing: 2px; }
+.stadium-concourse { fill: none; stroke: #283b4b; stroke-width: 24; }
+.stadium-concourse-guide { fill: none; stroke: #708596; stroke-width: 1; stroke-dasharray: 5 6; }
+#stadium-concourse-ring.muted { opacity: 0.2; }
+.stadium-bowl-outline { fill: #14232f; stroke: #334657; stroke-width: 2; }
+.stadium-field { fill: #193d34; stroke: #547f6c; stroke-width: 2; }
+.stadium-field-lines { stroke: #648878; stroke-width: 1; opacity: 0.5; }
+.stadium-field-caption { fill: #142d29; opacity: 0.96; }
+.stadium-svg .stadium-field-name { fill: #c1ddcb; font-size: 18px; letter-spacing: 3px; }
+.stadium-feature { cursor: pointer; outline: none; }
+.stadium-feature polygon, .stadium-feature rect { stroke-width: 1.5; transition: fill 100ms; }
+.stadium-feature.lower polygon { fill: #753c4d; stroke: #a76375; }
+.stadium-feature.upper polygon { fill: #2b5273; stroke: #5f89ae; }
+.stadium-feature.feature-gate rect { fill: #164b43; stroke: #6ce3c7; }
+.stadium-feature.feature-connector rect, .stadium-endpoint { fill: #584128; stroke: #e8b66c; }
+.stadium-feature.feature-reference rect { fill: #39314e; stroke: #b69ddb; stroke-dasharray: 3 2; }
+.stadium-feature .stadium-link { fill: none; stroke: #efc17f; stroke-width: 2; stroke-dasharray: 6 5; }
+.stadium-feature.feature-gate .stadium-link { stroke: #6ce3c7; }
+.stadium-svg .stadium-gate-side { fill: #88d4c4; font-size: 12px; letter-spacing: 1.5px; }
+.stadium-feature:hover polygon, .stadium-feature:hover rect { fill: #52667a; }
+.stadium-feature[aria-pressed="true"] polygon, .stadium-feature[aria-pressed="true"] rect,
+.stadium-feature:focus-visible polygon, .stadium-feature:focus-visible rect { stroke: #fff5c6; stroke-width: 3; fill: #645535; }
+.hide-section-labels .stadium-section-label { display: none; }
+.stadium-legend { border-top: 1px solid #263747; padding: 14px 18px 0; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 11px; color: #b2c1cd; }
+.stadium-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 2px; }
+.swatch.lower { background: #a76375; }
+.swatch.upper { background: #5f89ae; }
+.swatch.gate { background: #6ce3c7; }
+.swatch.connection { height: 0; width: 18px; border-top: 2px dashed #e8b66c; }
+.swatch.reference { border: 1px dashed #b69ddb; }
+.stadium-map-help { padding: 0 18px 8px; line-height: 1.6; font-size: 11px; }
+.stadium-details { padding: 22px; }
+.stadium-details h3 { font-size: 19px; line-height: 1.4; margin: 10px 0; }
+.stadium-details p { line-height: 1.7; }
+.stadium-details a { color: #8bdbce; text-underline-offset: 3px; }
+.stadium-details a:focus-visible, .stadium-sources summary:focus-visible { outline: 2px solid #62dbc1; outline-offset: 3px; }
+.stadium-toggles { display: flex; flex-wrap: wrap; gap: 0 14px; border-bottom: 1px solid #263747; margin-bottom: 22px; padding-bottom: 18px; }
+.stadium-toggles label { margin: 14px 0 0; }
+.stadium-toggles input { accent-color: #62dbc1; }
+.stadium-detail-tag { font-size: 10px; letter-spacing: 1.1px; color: #e8b66c; line-height: 1.6; }
+.stadium-facts { margin: 18px 0; font-size: 12px; }
+.stadium-facts > div { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid #263747; }
+.stadium-facts dt { color: #93aabd; }
+.stadium-facts dd { margin: 0; text-align: right; max-width: 65%; }
+.stadium-details .stadium-evidence { font-size: 11px; }
+.stadium-scope { background: #152838; padding: 16px; border-radius: 6px; margin-top: 22px; }
+.stadium-scope strong { font-size: 12px; color: #c5dfed; }
+.stadium-scope p { font-size: 12px; margin: 8px 0 0; }
+.stadium-sources { border-top: 1px solid #263747; margin-top: 22px; padding-top: 18px; font-size: 12px; }
+.stadium-sources summary { cursor: pointer; }
+.stadium-sources ul { padding-left: 16px; line-height: 1.8; }
+.stadium-sources li { margin: 8px 0; }
 @media (max-width: 1000px) {
+  .stadium-layout { grid-template-columns: 1fr; }
   #menu-screen {
     gap: 28px;
   }
@@ -320,6 +398,12 @@ progress {
   }
 }
 @media (max-width: 550px) {
+  .stadium-heading-row { align-items: start; flex-direction: column; }
+  .stadium-heading-row h2 { font-size: 28px; }
+  .stadium-badge { display: block; width: fit-content; margin: 10px 0 0; }
+  .stadium-toolbar { padding: 12px; }
+  .stadium-layers { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .stadium-layer-description { min-height: 75px; }
   #menu-screen {
     grid-template-columns: 1fr;
   }

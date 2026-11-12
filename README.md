@@ -31,6 +31,12 @@ npm run preview
 - FPS, frame time, remaining agents, elapsed time, evacuation totals, density, exit utilization, and route switches remain visible.
 - Backgrounding the page automatically pauses the simulation; press Start to resume.
 
+## SHI Stadium map study
+
+Choose **SHI Stadium · Map preview** from the **Building layout** menu, then **View map preview** to inspect a football-game schematic of Rutgers SHI Stadium. The same map choice is available in the simulation controls, where it pauses the current run and opens the preview. Switch between the lower bowl, separate upper decks, and concourse/gates; select a feature for source information; zoom and drag to inspect the map. The feature selector also works on mobile and with a keyboard.
+
+This is a map preview, with approximate geometry and proposed ramp/stair connections. Stadium crowd movement, measured distances, connector capacities, and evacuation results are not implemented yet. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources, assumptions, and next steps.
+
 ## Stack and architecture
 
 Vite, strict TypeScript, HTML/CSS, and Canvas 2D. There are no runtime packages, physics engines, runtime AI, or external pathfinding dependencies. TypeScript/tsx and Playwright are development tools only.
@@ -43,6 +49,7 @@ src/
   maps/mvpMap.ts             Original bottleneck floor plan
   maps/largeMap.ts           Larger building with west/south exits
   maps/maps.ts               Layout catalog, spawn areas, and labels
+  maps/stadium.ts            Schematic stadium surfaces, sections, gates, evidence
   simulation/
     Simulation.ts           Seeded spawn, fixed updates, prioritized route queue
     Agent.ts                Continuous agent state
@@ -62,6 +69,7 @@ src/
   ui/
     Controls.ts             Input bindings and metric readouts
     PerformanceStats.ts     Browser render cadence measurement
+    StadiumViewer.ts        Interactive SVG stadium layers and feature inspection
   utils/                    Vector helpers and seeded PRNG
 tests/                      Unit tests, full-run scenarios, browser tests
 ```

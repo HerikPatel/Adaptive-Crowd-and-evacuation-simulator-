@@ -3,7 +3,7 @@ import type { Grid } from "../simulation/Grid";
 import type { ExitId, RoutingMode } from "../config/simulationConfig";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
-import { MAPS, type MapId } from "../maps/maps";
+import { MAP_CHOICES, type MapChoiceId } from "../maps/maps";
 
 export class Controls {
   private values = new Map<string, HTMLElement>();
@@ -11,7 +11,7 @@ export class Controls {
   private exitSignature = "";
   constructor(private experiment: Experiment, options: RenderOptions) {
     document.querySelector("#controls")!.innerHTML = `
-      <label for="map">Building layout</label><select id="map">${Object.entries(MAPS).map(([id, map]) => `<option value="${id}">${map.name}</option>`).join("")}</select>
+      <label for="map">Building layout</label><select id="map">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
       <p class="note" id="map-description"></p>
       <label for="routing">Routing strategy</label><select id="routing"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option></select>
       <form id="population-form"><label for="population">Agent population</label><input id="population" type="number" min="1" step="1" required aria-describedby="population-help"><p class="field-help" id="population-help"></p><button type="submit" class="menu-button">Apply crowd size</button></form>
@@ -66,12 +66,18 @@ export class Controls {
     document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
   }
   private configure(count = this.experiment.simulation.agentCount) {
+    const mapId = document.querySelector<HTMLSelectElement>("#map")!.value as MapChoiceId;
+    if (mapId === "stadium") {
+      this.experiment.showStadium();
+      this.syncSettings();
+      return;
+    }
     const message = document.querySelector("#control-error")!;
     try {
       this.experiment.begin(count,
         document.querySelector<HTMLSelectElement>("#routing")!.value as RoutingMode,
         this.experiment.scenario,
-        document.querySelector<HTMLSelectElement>("#map")!.value as MapId, false);
+        mapId, false);
       message.textContent = "";
     } catch (error) {
       message.textContent = (error as Error).message;

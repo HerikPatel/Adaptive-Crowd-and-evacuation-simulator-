@@ -56,3 +56,10 @@ export const MAPS: Record<MapId, MapDefinition> = {
     ],
   },
 };
+
+// The map menus include previews that do not yet have a simulation grid.
+export type MapChoiceId = MapId | "stadium";
+export const MAP_CHOICES: { id: MapChoiceId; name: string }[] = [
+  ...(Object.keys(MAPS) as MapId[]).map(id => ({ id, name: MAPS[id].name })),
+  { id: "stadium", name: "SHI Stadium · Map preview" },
+];
