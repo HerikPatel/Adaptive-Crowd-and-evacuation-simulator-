@@ -54,7 +54,7 @@ test("schematic geometry and cross-surface references are valid without inventin
     }
   }
   assert.equal(STADIUM.metersPerUnit, null);
-  assert.equal(STADIUM.simulationReady, false);
+  assert.equal(STADIUM.simulationReady, true);
 });
 
 test("map study pauses a run, preserves its layout and cannot advance a hidden simulation", () => {

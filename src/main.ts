@@ -17,7 +17,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML =
     <p class="note">Every new run uses the same starting seed. Repeat the same inputs to reproduce an experiment.</p></div>
     <form id="setup-form"><h3>Experiment setup</h3>
     <label for="setup-map">Building layout</label><select id="setup-map" aria-describedby="setup-map-help">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
-    <p id="setup-map-help" class="field-help" hidden>Explore SHI Stadium's seating levels, gates and proposed connections. This map is a schematic preview; crowd simulation is not available yet.</p>
+    <p id="setup-map-help" class="field-help" hidden>Run a schematic SHI Stadium crowd simulation across seating levels, timed transfers and exterior gates. Choose crowd settings inside the stadium map.</p>
     <fieldset id="setup-simulation-settings" aria-label="Simulation settings">
     <label for="setup-population">Agent population</label><input id="setup-population" type="number" min="1" max="1000" step="1" value="100" required aria-describedby="setup-population-help"><p id="setup-population-help" class="field-help"></p>
     <label for="setup-routing">Routing strategy</label><select id="setup-routing" aria-describedby="routing-help"><option value="congestion">Congestion Aware</option><option value="shortest">Shortest Path</option></select><p id="routing-help" class="field-help">Shortest Path minimizes distance. Congestion Aware also considers nearby crowd density.</p>
@@ -38,7 +38,7 @@ const experiment = new Experiment();
 const simulation = experiment.simulation;
 const renderer = new Renderer(ctx);
 const controls = new Controls(experiment, renderer.options);
-new StadiumViewer(document.querySelector<HTMLElement>("#stadium-screen")!);
+const stadium = new StadiumViewer(document.querySelector<HTMLElement>("#stadium-screen")!);
 const screens = new Screens(experiment);
 const editor = new Editor(experiment, canvas);
 const stats = new PerformanceStats();
@@ -69,6 +69,7 @@ function frame(now: number) {
     }
   } else accumulator = 0;
   screens.update();
+  stadium.update(frameDelta, experiment.screen === "stadium");
   editor.update();
   renderer.render(
     simulation.grid,
@@ -90,6 +91,7 @@ function frame(now: number) {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     experiment.pause();
+    stadium.pause();
     accumulator = 0;
   }
   last = null;

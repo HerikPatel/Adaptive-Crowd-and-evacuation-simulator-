@@ -33,9 +33,17 @@ npm run preview
 
 ## SHI Stadium map study
 
-Choose **SHI Stadium · Map preview** from the **Building layout** menu, then **View map preview** to inspect a football-game schematic of Rutgers SHI Stadium. The same map choice is available in the simulation controls, where it pauses the current run and opens the preview. Switch between the lower bowl, separate upper decks, and concourse/gates; select a feature for source information; zoom and drag to inspect the map. The feature selector also works on mobile and with a keyboard.
+Choose **SHI Stadium · Schematic simulation** from the **Building layout** menu, then **Open stadium**. The same map choice in the building simulation controls pauses that run and opens the stadium. Switch between the lower bowl, separate upper decks, and concourse/gates; select a feature for source information; zoom and drag to inspect the map. The feature selector also works on mobile and with a keyboard.
 
-This is a map preview, with approximate geometry and proposed ramp/stair connections. Stadium crowd movement, measured distances, connector capacities, and evacuation results are not implemented yet. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources, assumptions, and next steps.
+Start with **100 spectators**, or choose 1–1,000 and a seating preset. **Start stadium run**, **Pause**, and **Reset crowd** control a deterministic run; playback supports 1×, 4× and 8×. Spectators follow assumed aisles, separate access walks, timed passages/ramps/stairs and the concourse to exterior gates. Transfers enforce entry rates and wait for available landing space. Live counts separate each surface, people in transit, and people outside. Changing the visible layer leaves every level advancing; leaving the stadium or hiding the tab pauses the run.
+
+Choose a start section and destination gate to inspect a route independently of the crowd. Inspect a gate, connector, or lower section to close its connection or edit transfer assumptions. These changes pause movement. Existing travelers finish their current edge; subsequent entries use the new network, and routes are recalculated at nodes. Reopening restores routes to stranded spectators. **Reset crowd** preserves network settings; **Reset route assumptions** restores open connections and defaults.
+
+**Crowd behavior** now offers a synthetic adult mix with individual walking speed, response delay and body size, or a uniform 1.2 m/s comparison using identical starting seats. Open **Inspect & edit an individual** or click a spectator to see their profile. Before starting, edit age, gender label, height, weight, response delay, pace factor or an explicit speed override. Reset restores seeded profiles. Gender labels do not impose a speed multiplier; the demographic speed formula is an illustrative assumption.
+
+Movement now checks swept circular bodies on each surface and transfer channel. Junction reservations cover short connected segments, and following gaps remain large enough through turns. A faster person queues behind a slower one; a blocked landing retains the person in transit. This is conservative graph-constrained avoidance, with coarse seat access and no lateral overtaking or learned controller. See [individual behavior, collision algorithm and evidence](docs/AGENT_BEHAVIOR.md).
+
+Geometry, scale, widths, profile distributions, speeds, and transfer settings remain experimental assumptions. Route-inspection times use the reference speed without queues; live times include individual speeds, response delays and waiting. Congestion-adaptive stadium routing is a later step. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources and map assumptions.
 
 ## Stack and architecture
 
@@ -50,6 +58,7 @@ src/
   maps/largeMap.ts           Larger building with west/south exits
   maps/maps.ts               Layout catalog, spawn areas, and labels
   maps/stadium.ts            Schematic stadium surfaces, sections, gates, evidence
+  maps/stadiumNavigation.ts  Assumed corridors, explicit transfers, geometry validation
   simulation/
     Simulation.ts           Seeded spawn, fixed updates, prioritized route queue
     Agent.ts                Continuous agent state
@@ -61,6 +70,7 @@ src/
     PriorityQueue.ts        Stable binary min-heap
     AStar.ts                Manual cardinal A* with Manhattan heuristic
     CongestionRouter.ts     Exit comparison, commitment, and hysteresis
+    StadiumRouter.ts        Surface-aware Dijkstra, closures, connectivity inspection
   collision/
     CollisionSystem.ts      Soft separation, wall avoidance, swept local checks
   rendering/
@@ -70,6 +80,7 @@ src/
     Controls.ts             Input bindings and metric readouts
     PerformanceStats.ts     Browser render cadence measurement
     StadiumViewer.ts        Interactive SVG stadium layers and feature inspection
+    StadiumRoutes.ts        Route overlay, transfer settings, connectivity status
   utils/                    Vector helpers and seeded PRNG
 tests/                      Unit tests, full-run scenarios, browser tests
 ```
@@ -140,7 +151,7 @@ Build and run `npm run preview`. Use a foreground browser tab at a fixed window 
 
 ## Known limitations
 
-- Soft local avoidance reduces overlap but is not rigid-body collision resolution; very dense crowds can overlap temporarily.
+- The original grid maps use soft local avoidance and can overlap temporarily in dense crowds. Stadium movement uses separate swept-body reservations; its remaining limitations are documented in the agent behavior notes.
 - Simplified density, geometry, speeds, and crowd behavior are not validated for evacuation planning.
 - No anticipation of hazards, disabilities, panic, stairs, or one-way flows. Nearby density may include agents separated by an adjacent wall.
 - Local routes can still exhibit temporary crowd hesitation. Cooldowns/hysteresis reduce oscillation without mathematically guaranteeing none.

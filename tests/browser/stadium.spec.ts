@@ -4,13 +4,13 @@ test("stadium layers, feature inspection, keyboard selection, pan and zoom", asy
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/");
-  // Invalid crowd settings must not prevent opening a map-only preview.
+  // Invalid grid settings must not prevent opening the independent stadium simulation.
   await page.locator("#setup-population").fill("");
   await page.locator("#setup-map").selectOption("stadium");
   await expect(page.getByRole("button", { name: "Start experiment", exact: true })).toHaveCount(0);
   await expect(page.locator("#setup-population")).toBeDisabled();
   await expect(page.locator("#edit-before-start")).toBeHidden();
-  await page.getByRole("button", { name: "View map preview" }).click();
+  await page.getByRole("button", { name: "Open stadium" }).click();
   await expect(page.locator("#stadium-screen")).toBeVisible();
   await expect(page.locator("#stadium-heading")).toBeFocused();
   await expect(page.locator("#simulation-screen")).toBeHidden();
@@ -54,6 +54,7 @@ test("stadium layers, feature inspection, keyboard selection, pan and zoom", asy
   await expect(page.locator("#stadium-zoom-value")).toHaveText("150%");
   const zoomed = await svg.getAttribute("viewBox");
   expect(zoomed).not.toBe(original);
+  await svg.scrollIntoViewIfNeeded();
   const bounds = (await svg.boundingBox())!;
   await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await page.mouse.down();
@@ -73,7 +74,7 @@ test("mobile map inspection preserves draft experiment settings and can return t
   await page.locator("#setup-routing").selectOption("shortest");
   await page.locator("#setup-map").selectOption("stadium");
   await page.screenshot({ path: info.outputPath("stadium-map-choice-mobile.png"), fullPage: true });
-  await page.getByRole("button", { name: "View map preview" }).click();
+  await page.getByRole("button", { name: "Open stadium" }).click();
   await page.getByRole("button", { name: "100 level", exact: true }).click();
   await page.getByLabel("Inspect a section, gate or connection").selectOption("elevator-138");
   await expect(page.locator("#stadium-feature-details")).toContainText("Unspecified");

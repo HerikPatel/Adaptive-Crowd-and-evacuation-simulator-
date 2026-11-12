@@ -47,7 +47,7 @@ export class Screens {
     settings.disabled = preview;
     document.querySelector<HTMLElement>("#setup-map-help")!.hidden = !preview;
     document.querySelector<HTMLElement>("#edit-before-start")!.hidden = preview;
-    document.querySelector("#setup-launch")!.textContent = preview ? "View map preview" : "Start experiment";
+    document.querySelector("#setup-launch")!.textContent = preview ? "Open stadium" : "Start experiment";
     if (preview) return;
     const limit = this.experiment.simulation.populationLimit(map);
     document.querySelector<HTMLInputElement>("#setup-population")!.max = String(limit);

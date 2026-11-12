@@ -1,5 +1,5 @@
 /** Original schematic based on Rutgers' public visitor map, not a measured floor plan.
- * Coordinates are drawing units. They must not be used for travel times or capacities.
+ * Coordinates are drawing units. Physical inputs belong to the separate assumed navigation scenario.
  */
 export type Point = { x: number; y: number };
 export type StadiumLayer = "overview" | "lower" | "upper" | "concourse";
@@ -14,7 +14,7 @@ export type SourceId = keyof typeof STADIUM_SOURCES;
 
 export const STADIUM_LAYERS: { id: StadiumLayer; name: string; description: string }[] = [
   { id: "overview", name: "Overview", description: "All modeling layers together. Overlapping shapes do not imply a walkable connection." },
-  { id: "lower", name: "100 level", description: "Lower seating bowl, sections 101–144. Section access aisles still need to be mapped." },
+  { id: "lower", name: "100 level", description: "Lower seating bowl, sections 101–144. Assumed aisles lead to a bowl access walk and concourse openings." },
   { id: "upper", name: "200 level", description: "Separate east and west decks. Travel between decks must go through connecting circulation routes." },
   { id: "concourse", name: "Concourse & gates", description: "Proposed circulation ring and four gate groups. Ring continuity and approach routes are assumptions." },
 ];
@@ -85,7 +85,7 @@ function section(number: number, surfaceId: SurfaceId, polygon: Point[], at: Poi
   return {
     id: `section-${number}`, kind: "section", name: `Section ${number}`, label: String(number),
     surfaceId, polygon, at, capacity: null, sources: ["map"],
-    description: "Section label and relative arrangement follow the public map. Shape and size are approximate. Seat counts and aisle connections are not yet established.",
+    description: "Section label and relative arrangement follow the public map. Shape and size are approximate. An assumed aisle connects this section to its access walk. Actual seat counts and aisle locations remain unverified.",
   };
 }
 
@@ -126,11 +126,11 @@ const gates: StadiumGate[] = ([
 const connectors: StadiumConnector[] = ([
   {
     id: "ramp-east", name: "East upper ramp", label: "R1", connectorType: "ramp", at: { x: 305, y: 103 },
-    from: { surfaceId: "upper-east", point: { x: 355, y: 103 } }, to: { surfaceId: "concourse", point: { x: 275, y: 220 } },
+    from: { surfaceId: "upper-east", point: { x: 350, y: 155 } }, to: { surfaceId: "concourse", point: { x: 275, y: 220 } },
   },
   {
     id: "ramp-west", name: "West upper ramp", label: "R2", connectorType: "ramp", at: { x: 305, y: 777 },
-    from: { surfaceId: "upper-west", point: { x: 445, y: 777 } }, to: { surfaceId: "concourse", point: { x: 275, y: 660 } },
+    from: { surfaceId: "upper-west", point: { x: 445, y: 715 } }, to: { surfaceId: "concourse", point: { x: 275, y: 660 } },
   },
   {
     id: "stairs-south-east", name: "South stairs, east side", label: "S1", connectorType: "stairs", at: { x: 1090, y: 300 },
@@ -155,7 +155,7 @@ const references: StadiumLandmark[] = [
 
 export const STADIUM = {
   name: "SHI Stadium", scenario: "Football · spectators in the stands", inspected: "2026-11-12",
-  width: 1200, height: 880, geometryStatus: "schematic", metersPerUnit: null, simulationReady: false,
+  width: 1200, height: 880, geometryStatus: "schematic", metersPerUnit: null, simulationReady: true,
   sections, gates, connectors, references,
 } as const;
 
