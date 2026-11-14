@@ -38,6 +38,13 @@ export class StadiumCrowd {
       <details class="stadium-profile-panel"><summary>Inspect & edit an individual</summary>
         <label for="stadium-person-picker">Spectator</label><select id="stadium-person-picker"></select>
         <p id="stadium-person-status" class="field-help"></p>
+        <div class="stadium-person-route" aria-live="polite" hidden>
+          <p><strong>Chosen gate:</strong> <span id="stadium-person-gate">—</span></p>
+          <p><strong>Committed route:</strong> <span id="stadium-person-route">—</span></p>
+          <p><strong>Estimated route travel time (excluding queues):</strong> <span id="stadium-person-estimate">—</span></p>
+          <p><strong>Replacement reason:</strong> <span id="stadium-person-replacement">None</span></p>
+          <p><strong>Actual evacuation time:</strong> <span id="stadium-person-actual">—</span></p>
+        </div>
         <form id="stadium-person-form"><fieldset id="stadium-person-fields" class="stadium-person-fields">
           <div><label for="person-age">Age (years)</label><input id="person-age" type="number" min="18" max="85" step="1" required></div>
           <div><label for="person-gender">Gender label</label><select id="person-gender"><option value="woman">Woman</option><option value="man">Man</option><option value="unspecified">Unspecified</option></select></div>
@@ -177,7 +184,19 @@ export class StadiumCrowd {
     this.population.disabled = this.origin.disabled = this.profileMode.disabled = s.running;
     this.root.querySelector<HTMLFieldSetElement>("#stadium-person-fields")!.disabled = s.running || s.time > 0;
     const person = s.spectators[Number(this.personPicker.value)];
+    this.root.querySelector<HTMLElement>(".stadium-person-route")!.hidden = !s.hasStarted;
     this.root.querySelector("#stadium-person-status")!.textContent = `Spectator ${person.id + 1} · ${person.stranded ? "without a route" : person.state.kind} · preferred ${walkingSpeed(person.profile).toFixed(2)} m/s · body diameter ${(bodyRadius(person.profile) * 2).toFixed(2)} m · response ${person.profile.reactionSeconds.toFixed(1)} s`;
+    const route = person.committedRoute;
+    const gate = route ? STADIUM.gates.find(candidate => candidate.id === route.gateId) : null;
+    const evacuatedGateId = person.state.kind === "evacuated" ? person.state.gateId : null;
+    const routeNames = route?.steps.map((step, index) =>
+      `${index < person.routeProgress ? "✓ " : ""}${this.router.edges.get(step.edgeId)!.name}`).join(" → ");
+    this.root.querySelector("#stadium-person-gate")!.textContent = gate?.name ?? (evacuatedGateId
+      ? STADIUM.gates.find(candidate => candidate.id === evacuatedGateId)?.name ?? evacuatedGateId : "—");
+    this.root.querySelector("#stadium-person-route")!.textContent = routeNames || (person.stranded ? "No open route" : "—");
+    this.root.querySelector("#stadium-person-estimate")!.textContent = route ? `${route.freeFlowSeconds.toFixed(1)} s` : "—";
+    this.root.querySelector("#stadium-person-replacement")!.textContent = person.replacementReason ?? "None";
+    this.root.querySelector("#stadium-person-actual")!.textContent = person.state.kind === "evacuated" ? `${person.state.at.toFixed(1)} s` : "—";
     this.root.querySelector("#stadium-speed-summary")!.textContent = `Preferred walking speeds: ${m.minSpeed.toFixed(2)}–${m.maxSpeed.toFixed(2)} m/s · mean ${m.meanSpeed.toFixed(2)} m/s. Bodies retain their size at turns and junctions.`;
     this.root.querySelector<HTMLButtonElement>("#stadium-run-start")!.disabled = s.running;
     this.root.querySelector<HTMLButtonElement>("#stadium-run-pause")!.disabled = !s.running;

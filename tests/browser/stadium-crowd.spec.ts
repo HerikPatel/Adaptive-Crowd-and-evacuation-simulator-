@@ -44,6 +44,8 @@ test("live stadium crowd keeps every level advancing and pauses for connection c
   await expect(page.locator("#stadium-run-time")).toHaveText("0.0 s");
   await expect(page.locator("#stadium-run-count")).toHaveText("0 / 100");
   await expect(page.getByRole("button", { name: "Reopen connection", exact: true })).toBeVisible();
+  await expect(page.locator("#stadium-stranded")).toHaveText("0");
+  await page.getByRole("button", { name: "Start stadium run", exact: true }).click();
   await expect.poll(async () => Number(await page.locator("#stadium-stranded").innerText())).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });

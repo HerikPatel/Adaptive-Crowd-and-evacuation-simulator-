@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { STADIUM } from "../src/maps/stadium";
-import { createStadiumNetwork, intersectsStadiumField, validateStadiumNetwork } from "../src/maps/stadiumNavigation";
+import { createStadiumNetwork, intersectsStadiumField, validateStadiumNetwork, type StadiumNetwork } from "../src/maps/stadiumNavigation";
 import { StadiumRouter } from "../src/pathfinding/StadiumRouter";
 
 test("every stadium section has a continuous, surface-aware route to each exterior gate", () => {
@@ -86,6 +86,59 @@ test("assumed transfer time affects route cost; capacities and invalid edits nev
   router.reset();
   assert.deepEqual(router.route("section-217", "gate-north"), original);
   assert.deepEqual(new StadiumRouter().route("section-217", "gate-north"), original);
+});
+
+function personalSpeedNetwork(): StadiumNetwork {
+  const network = createStadiumNetwork();
+  network.nodes.push(
+    { id: "speed-start", surfaceId: "lower-bowl", point: { x: 10, y: 10 } },
+    { id: "speed-far", surfaceId: "lower-bowl", point: { x: 60, y: 10 } },
+    { id: "speed-a", surfaceId: "concourse", point: { x: 10, y: 20 } },
+    { id: "speed-b", surfaceId: "concourse", point: { x: 60, y: 20 } },
+    { id: "speed-a-out", surfaceId: "exterior", point: { x: 10, y: 30 } },
+    { id: "speed-b-out", surfaceId: "exterior", point: { x: 60, y: 30 } },
+  );
+  network.edges.push(
+    { id: "speed-walk", name: "Long lower walk", from: "speed-start", to: "speed-far", kind: "walkway", direction: "both",
+      points: [{ x: 10, y: 10 }, { x: 60, y: 10 }], widthMeters: 2.4, transfer: null, evidence: "assumed" },
+    { id: "speed-slow-transfer", name: "Nearby slow passage", from: "speed-start", to: "speed-a", kind: "passage", direction: "forward",
+      points: [{ x: 10, y: 10 }, { x: 10, y: 20 }], widthMeters: null, transfer: { travelSeconds: 10, capacityPerSecond: 2 }, evidence: "assumed" },
+    { id: "speed-fast-transfer", name: "Distant fast passage", from: "speed-far", to: "speed-b", kind: "passage", direction: "forward",
+      points: [{ x: 60, y: 10 }, { x: 60, y: 20 }], widthMeters: null, transfer: { travelSeconds: 2, capacityPerSecond: 2 }, evidence: "assumed" },
+    { id: "speed-gate-a", name: "Speed gate A", from: "speed-a", to: "speed-a-out", kind: "gate", direction: "forward",
+      points: [{ x: 10, y: 20 }, { x: 10, y: 30 }], widthMeters: null, transfer: null, evidence: "assumed" },
+    { id: "speed-gate-b", name: "Speed gate B", from: "speed-b", to: "speed-b-out", kind: "gate", direction: "forward",
+      points: [{ x: 60, y: 20 }, { x: 60, y: 30 }], widthMeters: null, transfer: null, evidence: "assumed" },
+  );
+  network.sectionNodes.controlled = "speed-start";
+  network.gateNodes["speed-gate-a"] = "speed-a-out";
+  network.gateNodes["speed-gate-b"] = "speed-b-out";
+  return network;
+}
+
+test("personal walking speed changes costs and can change the Dijkstra route", () => {
+  const router = new StadiumRouter(personalSpeedNetwork());
+  const reference = router.route("controlled", "any", { walkingSpeedMetersPerSecond: 1.2 })!;
+  const fast = router.route("controlled", "any", { walkingSpeedMetersPerSecond: 1.8 })!;
+  assert.equal(reference.gateId, "speed-gate-a");
+  assert.equal(fast.gateId, "speed-gate-b");
+  assert.ok(Math.abs(reference.freeFlowSeconds - (10 + 2 / 1.2)) < 1e-8);
+  assert.ok(Math.abs(fast.freeFlowSeconds - (10 / 1.8 + 2 + 2 / 1.8)) < 1e-8);
+  const slowTransfer = router.route("controlled", "speed-gate-a", { walkingSpeedMetersPerSecond: 0.6 })!;
+  assert.ok(Math.abs(slowTransfer.transferSeconds - 20) < 1e-8, "transfer minimum scales for a slower walker");
+  assert.deepEqual(router.route("controlled"), reference, "omitted context retains reference-speed behavior");
+  assert.throws(() => router.route("controlled", "any", { walkingSpeedMetersPerSecond: 0 }));
+});
+
+test("transfer edits change future costs without changing the connectivity revision", () => {
+  const router = new StadiumRouter();
+  const connectivityRevision = router.revision;
+  const parameterRevision = router.parameterRevision;
+  router.setParameters("ramp-east", { travelSeconds: 45, capacityPerSecond: 1 });
+  assert.equal(router.revision, connectivityRevision);
+  assert.equal(router.parameterRevision, parameterRevision + 1);
+  router.setClosed("ramp-east", true);
+  assert.equal(router.revision, connectivityRevision + 1);
 });
 
 test("network validation rejects missing endpoints, floor shortcuts, field routes and invalid transfer limits", () => {

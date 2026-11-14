@@ -22,6 +22,10 @@ export interface StadiumSpectator {
   seat: Point;
   profile: PersonProfile;
   state: SpectatorState;
+  committedRoute: StadiumRoute | null;
+  routeProgress: number;
+  replacementReason: string | null;
+  pendingReplacementReason: string | null;
   stranded: boolean;
   waiting: boolean;
 }
@@ -60,6 +64,7 @@ export class StadiumSimulation {
   events: StadiumEvent[] = [];
   time = 0;
   running = false;
+  hasStarted = false;
   private options: StadiumRunOptions = { count: 100 };
   private slots: Map<string, Point[]>;
   private bodies = new DiscReservations();
@@ -138,11 +143,13 @@ export class StadiumSimulation {
       if (!seat) continue;
       people.push({ id: people.length, sectionId, seat: { ...seat },
         profile: createProfile(options.seed ?? 549, people.length, profileMode),
-        state: { kind: "seated", nodeId: this.router.network.sectionNodes[sectionId] }, stranded: false, waiting: true });
+        state: { kind: "seated", nodeId: this.router.network.sectionNodes[sectionId] },
+        committedRoute: null, routeProgress: 0, replacementReason: null, pendingReplacementReason: null,
+        stranded: false, waiting: true });
     }
     // Validation and preparation happen before changing a live run.
     this.options = { count: options.count, sections, seed: options.seed ?? 549, profileMode };
-    this.spectators = people; this.time = 0; this.running = false; this.events = [];
+    this.spectators = people; this.time = 0; this.running = false; this.hasStarted = false; this.events = [];
     this.owners.clear(); this.lastAdmission.clear(); this.routeCache.clear(); this.revision = -1;
     this.collisionWaits = 0;
     this.releaseOrder = [...people].sort((a, b) => {
@@ -158,7 +165,7 @@ export class StadiumSimulation {
 
   get complete() { return this.spectators.every(p => p.state.kind === "evacuated"); }
   get blocked() { return !this.complete && this.spectators.every(p => p.state.kind === "evacuated" || p.stranded); }
-  start() { this.refreshRoutes(); this.running = !this.complete && !this.blocked; }
+  start() { this.refreshRoutes(); this.hasStarted = true; this.running = !this.complete && !this.blocked; }
   pause() { this.running = false; }
 
   setProfile(id: number, profile: PersonProfile) {
@@ -166,7 +173,12 @@ export class StadiumSimulation {
     validateProfile(profile);
     const p = this.spectators.find(person => person.id === id);
     if (!p) throw new Error("Unknown spectator.");
-    p.profile = { ...profile }; this.rebuildBodies();
+    if (p.state.kind !== "seated" && p.state.kind !== "node" && p.state.kind !== "approaching")
+      throw new Error("Reset the crowd before editing a person's profile.");
+    p.profile = { ...profile };
+    p.committedRoute = null; p.routeProgress = 0; p.replacementReason = null; p.pendingReplacementReason = null;
+    p.stranded = false;
+    this.rebuildBodies();
   }
 
   private zone(p: StadiumSpectator) {
@@ -197,15 +209,49 @@ export class StadiumSimulation {
 
   refreshRoutes() {
     if (this.revision === this.router.revision) return;
+    const initial = this.revision < 0;
     this.revision = this.router.revision; this.routeCache.clear();
     for (const p of this.spectators) {
-      p.stranded = (p.state.kind === "node" || p.state.kind === "seated") && !this.route(p.state.nodeId);
+      if (p.state.kind === "evacuated") continue;
+      if (!p.committedRoute) {
+        if (!initial && this.hasStarted && p.stranded &&
+            (p.state.kind === "node" || p.state.kind === "seated" || p.state.kind === "approaching"))
+          this.planFromNode(p, p.state.nodeId, "Connectivity restored");
+        continue;
+      }
+      const closed = p.committedRoute.steps.slice(p.routeProgress).find(step => this.router.isClosed(step.edgeId));
+      if (!closed) { p.stranded = false; continue; }
+      const edge = this.router.edges.get(closed.edgeId)!;
+      const reason = `${edge.kind === "gate" ? "Gate" : "Connection"} closed: ${edge.name}`;
+      if (p.state.kind === "walking" || p.state.kind === "transfer") {
+        // An occupied exterior gate still completes the evacuation; other closures replan at arrival.
+        if (!(p.state.kind === "walking" && p.state.step.edgeId === closed.edgeId && edge.kind === "gate"))
+          p.pendingReplacementReason = reason;
+        p.stranded = false;
+      } else this.planFromNode(p, p.state.nodeId, reason);
     }
   }
 
-  private route(nodeId: string) {
-    if (!this.routeCache.has(nodeId)) this.routeCache.set(nodeId, this.router.routeFromNode(nodeId));
-    return this.routeCache.get(nodeId)!;
+  private route(nodeId: string, speed: number) {
+    const key = `${nodeId}|${speed}|${this.router.revision}|${this.router.parameterRevision}`;
+    if (!this.routeCache.has(key)) this.routeCache.set(key,
+      this.router.routeFromNode(nodeId, "any", { walkingSpeedMetersPerSecond: speed }));
+    return this.routeCache.get(key)!;
+  }
+  private planFromNode(p: StadiumSpectator, nodeId: string, reason: string | null) {
+    const route = this.route(nodeId, walkingSpeed(p.profile));
+    p.committedRoute = route; p.routeProgress = 0; p.pendingReplacementReason = null;
+    p.stranded = !route;
+    p.replacementReason = route ? reason : "Route disconnected";
+    return route;
+  }
+  private nextStep(p: StadiumSpectator) {
+    return p.committedRoute?.steps[p.routeProgress];
+  }
+  private arriveAtNode(p: StadiumSpectator, nodeId: string) {
+    p.state = { kind: "node", nodeId };
+    if (p.pendingReplacementReason) this.planFromNode(p, nodeId, p.pendingReplacementReason);
+    else p.routeProgress++;
   }
   private claim(nodeId: string, personId: number): boolean {
     nodeId = this.regions.get(nodeId)!;
@@ -260,7 +306,7 @@ export class StadiumSimulation {
           p.state = { kind: "evacuated", gateId, at: this.time };
           this.release(s.step.to, p.id);
           this.events.push({ personId: p.id, edgeId: edge.id, kind: "evacuate", time: this.time });
-        } else p.state = { kind: "node", nodeId: s.step.to };
+        } else this.arriveAtNode(p, s.step.to);
       } else fronts.set(key, s.distance);
       this.reserveBody(p);
     }
@@ -281,11 +327,10 @@ export class StadiumSimulation {
     for (const p of this.releaseOrder) {
       const s = p.state;
       if (s.kind !== "node" && s.kind !== "seated") continue;
-      const route = this.route(s.nodeId);
-      p.stranded = !route;
-      if (!route) continue;
       if (s.kind === "seated") {
         if (this.time < p.profile.reactionSeconds) continue;
+        if (!p.committedRoute && !p.stranded) this.planFromNode(p, s.nodeId, null);
+        if (!p.committedRoute) continue;
         const owner = this.owners.get(this.regions.get(s.nodeId)!);
         if (owner !== undefined && owner !== p.id) continue;
         const at = this.router.nodes.get(s.nodeId)!.point;
@@ -296,8 +341,10 @@ export class StadiumSimulation {
           length: Math.hypot(at.x - p.seat.x, at.y - p.seat.y) * SCALE };
         p.waiting = false; continue;
       }
-      const step = route.steps[0];
+      if (!p.committedRoute) { p.stranded = true; continue; }
+      const step = this.nextStep(p);
       if (!step) continue;
+      if (this.router.isClosed(step.edgeId)) continue;
       const edge = this.router.edges.get(step.edgeId)!, occupants = occupancy.get(edge.id) ?? [];
       const sameLane = occupants.filter(other => other.step.from === step.from);
       if (sameLane.some(other => other.distance < this.gap(edge.id) - EPS)) continue;
@@ -367,7 +414,7 @@ export class StadiumSimulation {
         if (p.stranded) stranded++;
         else if (p.waiting) waiting++;
         if (s.kind === "node") {
-          const next = this.route(s.nodeId)?.steps[0];
+          const next = this.nextStep(p);
           if (next && transfers[next.edgeId]) transfers[next.edgeId].waiting++;
         }
       }

@@ -56,7 +56,7 @@ export class StadiumViewer {
         <p class="stadium-map-help">East is up. Zoom in, then drag the background to pan. Shapes are approximate and not to scale.</p>
         <div class="stadium-crowd-legend"><span>● Moving</span><span>● Waiting</span><span>● In transit</span><span>● Without a route</span></div>
         <section id="stadium-crowd-stats" class="stadium-route-summary" aria-label="Stadium live measurements"></section>
-        <section class="stadium-route-summary" aria-label="Route preview results"><span class="stadium-detail-tag">ROUTE INSPECTION · FREE-FLOW ESTIMATE</span><strong id="stadium-route-status" role="status"></strong><p id="stadium-route-measures"></p><p id="stadium-route-layer-note" class="field-help"></p>
+        <section class="stadium-route-summary" aria-label="Reference-speed route preview results"><span class="stadium-detail-tag">REFERENCE-SPEED ROUTE PREVIEW · EXCLUDES QUEUES</span><strong id="stadium-route-status" role="status"></strong><p id="stadium-route-measures"></p><p id="stadium-route-layer-note" class="field-help"></p>
           <details><summary>Route steps</summary><ol id="stadium-route-steps"></ol></details>
           <div class="stadium-connectivity-row"><strong id="stadium-connectivity" role="status"></strong><button type="button" id="stadium-reset-network">Reset route assumptions</button></div><p id="stadium-disconnected"></p>
         </section>
@@ -67,7 +67,7 @@ export class StadiumViewer {
           <label class="check"><input id="stadium-connections" type="checkbox" checked> Proposed connections</label></div>
         <div id="stadium-feature-details" aria-live="polite" aria-atomic="true"></div>
         <div id="stadium-connection-controls" hidden></div>
-        <div class="stadium-scope"><strong>Connected levels, timed transfers</strong><p>Inspect a ramp, stair, gate or lower section to change its connection. Changes pause the run. Closures prevent new entries; people already traveling finish their current connection, then replan. Reset crowd keeps your route settings.</p><p>Counts update across all levels. Only passing an exterior gate counts as evacuation. The highlighted route is an inspection aid; spectators choose the lowest assumed travel time to any open gate.</p></div>
+        <div class="stadium-scope"><strong>Connected levels, timed transfers</strong><p>Inspect a ramp, stair, gate or lower section to change its connection. Changes pause the run. Closures prevent new entries; people already traveling finish their current connection, then replan. Reset crowd keeps your route settings.</p><p>Counts update across all levels. Only passing an exterior gate counts as evacuation. The highlighted route is a reference-speed inspection aid. After their response delay, each spectator chooses from the currently open routes using their preferred walking speed and commits; queues delay movement but do not change that route.</p></div>
         <details class="stadium-sources"><summary>Sources & assumptions</summary>
           <p>Section labels, gate groups and access symbols come from Rutgers. All shapes are schematic; the concourse ring and dashed connections are modeling assumptions. Layers do not represent three uniform building floors.</p>
           <p>${stadiumAssumptionsText}</p><p>Default transfer assumptions: ramps 30 s at 2 people/s; stairs 12 s at 1 person/s; bowl openings 3 s at 2 people/s. Connectors lead toward the concourse; gates lead outside. Settings last for this visit.</p>

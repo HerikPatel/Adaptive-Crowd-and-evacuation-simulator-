@@ -18,7 +18,7 @@ export class StadiumRoutes {
     root.querySelector("#stadium-route-tools")!.innerHTML = `
       <div><label for="stadium-route-from">Route start section</label><select id="stadium-route-from">
         ${STADIUM_SURFACES.filter(s => s.id.startsWith("upper") || s.id === "lower-bowl").map(s => `<optgroup label="${s.name}">${STADIUM.sections.filter(section => section.surfaceId === s.id).map(section => `<option value="${section.id}">${section.name}</option>`).join("")}</optgroup>`).join("")}
-      </select></div><div><label for="stadium-route-gate">Destination gate</label><select id="stadium-route-gate"><option value="any">Any open gate · lowest assumed time</option>
+      </select></div><div><label for="stadium-route-gate">Destination gate</label><select id="stadium-route-gate"><option value="any">Any open gate · lowest reference-speed time</option>
         ${STADIUM.gates.map(g => `<option value="${g.id}">${g.name}</option>`).join("")}</select></div>
       <label class="check"><input id="stadium-walkways" type="checkbox" checked> Show walkable routes</label>`;
     root.querySelector<HTMLSelectElement>("#stadium-route-from")!.value = this.from;
@@ -161,7 +161,7 @@ export class StadiumRoutes {
       : `No route from ${from.name} to ${this.gate === "any" ? "an open gate" : "the selected gate"}.`;
     status.classList.toggle("error", !route);
     this.root.querySelector("#stadium-route-measures")!.textContent = route
-      ? `Illustrative travel without queues: ${route.freeFlowSeconds.toFixed(1)} s · assumed walking distance ${route.assumedWalkMeters.toFixed(1)} m · transfers ${route.transferSeconds.toFixed(1)} s`
+      ? `Reference-speed travel excluding queues: ${route.freeFlowSeconds.toFixed(1)} s · assumed walking distance ${route.assumedWalkMeters.toFixed(1)} m · transfers ${route.transferSeconds.toFixed(1)} s`
       : "Reopen a connection or gate, or choose another destination. See connectivity below for sections without any exit route.";
     this.root.querySelector("#stadium-route-layer-note")!.textContent = this.layer === "overview" ? "" : "Only this layer's portion is highlighted. Choose Overview to see the complete route.";
     this.root.querySelector("#stadium-route-steps")!.innerHTML = route ? this.itinerary(route) : "<li>No connected route.</li>";

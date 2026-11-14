@@ -6,6 +6,7 @@ test("stadium routes connect levels, apply transfer assumptions and report closu
   await page.goto("/");
   await page.locator("#setup-map").selectOption("stadium");
   await page.getByRole("button", { name: "Open stadium" }).click();
+  await expect(page.getByText("REFERENCE-SPEED ROUTE PREVIEW · EXCLUDES QUEUES", { exact: true })).toBeVisible();
   const connectivity = page.locator("#stadium-connectivity");
   const status = page.locator("#stadium-route-status");
   const features = page.getByLabel("Inspect a section, gate or connection");

@@ -3,6 +3,7 @@ import { STADIUM_ASSUMPTIONS, createStadiumNetwork, drawingLength, validateStadi
   type NavigationEdge, type StadiumNetwork, type TransferParameters } from "../maps/stadiumNavigation";
 
 export interface StadiumRouteStep { edgeId: string; from: string; to: string }
+export interface StadiumRoutingContext { walkingSpeedMetersPerSecond: number }
 export interface StadiumRoute {
   sectionId: string;
   gateId: string;
@@ -14,7 +15,10 @@ export interface StadiumRoute {
 
 /** Surface-aware routes shared by inspection and the crowd simulation. */
 export class StadiumRouter {
+  /** Connectivity revision: changes only when an edge opens or closes. */
   revision = 0;
+  /** Cost revision: changes when transfer timing assumptions change. */
+  parameterRevision = 0;
   readonly nodes;
   readonly edges;
   readonly controls: NavigationEdge[];
@@ -61,28 +65,39 @@ export class StadiumRouter {
     const previous = this.parameters(id)!;
     if (previous.travelSeconds === value.travelSeconds && previous.capacityPerSecond === value.capacityPerSecond) return;
     this.overrides.set(id, { ...value });
-    this.revision++;
+    this.parameterRevision++;
   }
   reset() {
     if (!this.closed.size && !this.overrides.size) return;
-    this.closed.clear(); this.overrides.clear(); this.revision++;
+    if (this.closed.size) { this.closed.clear(); this.revision++; }
+    if (this.overrides.size) { this.overrides.clear(); this.parameterRevision++; }
   }
 
-  edgeSeconds(edge: NavigationEdge): number {
+  private speed(context?: StadiumRoutingContext): number {
+    const speed = context?.walkingSpeedMetersPerSecond ?? STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond;
+    if (!Number.isFinite(speed) || speed <= 0) throw new Error("Walking speed must be a positive finite number.");
+    return speed;
+  }
+
+  edgeSeconds(edge: NavigationEdge, context?: StadiumRoutingContext): number {
+    const speed = this.speed(context);
     const transfer = this.parameters(edge.id);
-    return transfer ? transfer.travelSeconds : drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit / STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond;
+    return transfer
+      ? transfer.travelSeconds * Math.max(1, STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond / speed)
+      : drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit / speed;
   }
 
   /** Dijkstra: explicit positive transfer costs; drawing intersections never create neighbors. */
-  route(sectionId: string, gateId = "any"): StadiumRoute | null {
+  route(sectionId: string, gateId = "any", context?: StadiumRoutingContext): StadiumRoute | null {
     const start = this.network.sectionNodes[sectionId];
     if (!start) throw new Error("Unknown stadium section");
-    const route = this.routeFromNode(start, gateId);
+    const route = this.routeFromNode(start, gateId, context);
     return route ? { ...route, sectionId } : null;
   }
 
   /** Replan at a real node after a closure; never relocate an in-flight spectator. */
-  routeFromNode(start: string, gateId = "any"): StadiumRoute | null {
+  routeFromNode(start: string, gateId = "any", context?: StadiumRoutingContext): StadiumRoute | null {
+    this.speed(context);
     if (!this.nodes.has(start)) throw new Error("Unknown stadium node");
     if (gateId !== "any" && !this.network.gateNodes[gateId]) throw new Error("Unknown stadium gate group");
     const targets = new Set(gateId === "any" ? Object.values(this.network.gateNodes) : [this.network.gateNodes[gateId]]);
@@ -96,7 +111,7 @@ export class StadiumRouter {
       if (targets.has(current.id)) { end = current.id; break; }
       for (const step of this.outgoing.get(current.id) ?? []) {
         if (this.closed.has(step.edgeId)) continue;
-        const cost = current.cost + this.edgeSeconds(this.edges.get(step.edgeId)!);
+        const cost = current.cost + this.edgeSeconds(this.edges.get(step.edgeId)!, context);
         if (cost >= (costs.get(step.to) ?? Infinity)) continue;
         costs.set(step.to, cost); previous.set(step.to, step);
         queue.push({ id: step.to, cost }, cost);
@@ -112,7 +127,7 @@ export class StadiumRouter {
     let assumedWalkMeters = 0, transferSeconds = 0;
     for (const step of steps) {
       const edge = this.edges.get(step.edgeId)!;
-      if (edge.transfer) transferSeconds += this.edgeSeconds(edge);
+      if (edge.transfer) transferSeconds += this.edgeSeconds(edge, context);
       else assumedWalkMeters += drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit;
     }
     return { sectionId: start, gateId: Object.keys(this.network.gateNodes).find(id => this.network.gateNodes[id] === end)!,
