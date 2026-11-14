@@ -9,6 +9,8 @@ export const STADIUM_SOURCES = {
   map: { title: "Rutgers stadium map", url: "https://scarletknights.com/sports/2026/8/17/shi-stadium-map" },
   gates: { title: "Rutgers gate guide", url: "https://scarletknights.com/sports/2026/8/17/gate-ticket-information" },
   access: { title: "Rutgers accessibility information", url: "https://scarletknights.com/sports/2017/6/11/facilities-ada-shuttle-info-html" },
+  architecture: { title: "SHI Stadium expansion overview", url: "https://www.epicbuilds.com/portfolio/rutgers-university-high-point-solutions-stadium/" },
+  photo: { title: "SHI Stadium reference photograph (CC BY 4.0)", url: "https://commons.wikimedia.org/wiki/File:Shi_Stadium_-_Rutgers_Football_(55140894287).jpg" },
 } as const;
 export type SourceId = keyof typeof STADIUM_SOURCES;
 

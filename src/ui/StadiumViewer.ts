@@ -3,7 +3,7 @@ import {
   type StadiumFeature, type StadiumLayer,
 } from "../maps/stadium";
 import { StadiumRoutes, stadiumAssumptionsText } from "./StadiumRoutes";
-import { Stadium3DView } from "./Stadium3DView";
+import { Stadium3DView, type StadiumLighting } from "./Stadium3DView";
 import { STADIUM_DESTINATIONS, type StadiumViewLevel, type StadiumViewMode } from "./StadiumVisuals";
 
 const VIEW_LEVELS: { id: StadiumViewLevel; name: string; description: string }[] = [
@@ -32,11 +32,11 @@ export class StadiumViewer {
   constructor(private root: HTMLElement) {
     root.innerHTML = `
       <div class="stadium-heading-row"><div><span class="eyebrow stadium-eyebrow">RUTGERS / MAP STUDY</span>
-        <h2 id="stadium-heading" tabindex="-1">SHI Stadium <span class="stadium-badge">Schematic simulation</span></h2>
+        <h2 id="stadium-heading" tabindex="-1">SHI Stadium <span class="stadium-badge">Linked 2D + 3D simulation</span></h2>
         <p>${STADIUM.scenario}. Follow spectators from the stands through transfers to exterior gates.</p></div>
         <button type="button" data-menu>Back to setup</button></div>
       <div class="stadium-layout"><section class="stage" aria-label="Stadium map viewer">
-        <div class="stadium-view-switch" role="group" aria-label="Stadium view"><button type="button" data-view="2d" aria-pressed="true">2D overview</button><button type="button" data-view="3d" aria-pressed="false">Architectural 3D</button><span class="stadium-schematic-label">SCHEMATIC · ILLUSTRATIVE ELEVATIONS</span></div>
+        <div class="stadium-view-switch" role="group" aria-label="Stadium view"><button type="button" data-view="2d" aria-pressed="true">2D overview</button><button type="button" data-view="3d" aria-pressed="false">Architectural 3D</button><span class="stadium-schematic-label">SHI STADIUM-INSPIRED · VISUAL PROJECTION</span></div>
         <div class="stadium-toolbar"><div class="stadium-layers" role="group" aria-label="Map level">
           ${VIEW_LEVELS.map(l => `<button type="button" data-level="${l.id}" aria-pressed="${l.id === this.level}">${l.name}</button>`).join("")}
         </div><div class="stadium-zoom" role="group" aria-label="Map zoom">
@@ -70,12 +70,15 @@ export class StadiumViewer {
           </g>
           ${STADIUM_FEATURES.map(f => this.featureMarkup(f)).join("")}
           <g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-committed-routes" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g><g id="stadium-state-markers" aria-hidden="true"></g>
-        </svg><div id="stadium-3d" class="stadium-3d" hidden><div id="stadium-3d-loading">Choose 3D to load the schematic scene.</div></div></div>
-        <div id="stadium-3d-controls" class="stadium-3d-controls" hidden><button type="button" data-camera="overview">Overview</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button><button type="button" data-camera="fit">Reset to fit</button><button type="button" id="stadium-follow-person" disabled>Follow selected person</button><output id="stadium-3d-performance"></output></div>
+        </svg><div id="stadium-3d" class="stadium-3d" hidden><div id="stadium-3d-loading">Choose 3D to load the SHI Stadium-inspired scene.</div></div></div>
+        <div id="stadium-3d-controls" class="stadium-3d-controls" hidden>
+          <div role="group" aria-label="3D camera"><button type="button" data-camera="overview">Overview</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button><button type="button" data-camera="fit">Reset to fit</button></div>
+          <div class="stadium-lighting-controls" role="group" aria-label="3D lighting"><button type="button" data-lighting="day" aria-pressed="true">Day</button><button type="button" data-lighting="night" aria-pressed="false">Stadium lights</button></div>
+          <button type="button" id="stadium-follow-person" disabled>Follow selected person</button><output id="stadium-3d-performance"></output></div>
         <div id="stadium-3d-error" class="error" role="alert"><span id="stadium-3d-error-text"></span><button type="button" id="stadium-return-2d" hidden>Return to 2D</button></div>
         <div class="stadium-legend stadium-destination-legend">${Object.entries(STADIUM_DESTINATIONS).map(([id, gate]) => `<span data-gate-legend="${id}"><i class="swatch" style="background:${gate.color}"></i>${gate.label}</span>`).join("")}
           <span><i class="swatch neutral"></i>Not assigned</span><span><i class="swatch waiting"></i>Waiting outline</span><span><i class="swatch rerouting"></i>Rerouting marker</span><span><i class="swatch blocked"></i>Blocked route</span></div>
-        <p class="stadium-map-help">East is up. Zoom in, then drag the background to pan. Shapes are approximate and not to scale.</p>
+        <p class="stadium-map-help">The 2D map remains schematic. The 3D scene is a SHI Stadium-inspired visual projection; orbit with drag and zoom with the wheel or trackpad.</p>
         <details id="stadium-measurements" class="stadium-collapsible"><summary>Detailed measurements</summary><section id="stadium-crowd-stats" class="stadium-route-summary" aria-label="Stadium live measurements"></section></details>
       </section><aside class="stadium-details" aria-label="Map details">
         <span class="eyebrow">CONTEXTUAL INSPECTOR</span>
@@ -88,7 +91,7 @@ export class StadiumViewer {
           <label class="check"><input id="stadium-connections" type="checkbox" checked> Proposed connections</label></div></details>
         <div class="stadium-scope"><strong>Connected levels, timed transfers</strong><p>Inspect a ramp, stair, gate or lower section to change its connection. Changes pause the run. Closures prevent new entries; people already traveling finish their current connection, then replan. Reset crowd keeps your route settings.</p><p>Counts update across all levels. Only passing an exterior gate counts as evacuation. The highlighted route is a reference-speed inspection aid. After their response delay, each spectator chooses from the currently open routes using their preferred walking speed and commits; queues delay movement but do not change that route.</p></div>
         <details class="stadium-sources"><summary>Sources & assumptions</summary>
-          <p>Section labels, gate groups and access symbols come from Rutgers. All shapes are schematic; the concourse ring and dashed connections are modeling assumptions. Layers do not represent three uniform building floors.</p>
+          <p>Section labels, gate groups and access symbols come from Rutgers. The 2D map remains schematic. The separate 3D projection is inspired by SHI Stadium's open bowl, sideline upper decks, south-end expansion, video board and entrance façade; it is not a measured digital twin. Official branding is intentionally omitted.</p>
           <p>${stadiumAssumptionsText}</p><p>Default transfer assumptions: ramps 30 s at 2 people/s; stairs 12 s at 1 person/s; bowl openings 3 s at 2 people/s. Connectors lead toward the concourse; gates lead outside. Settings last for this visit.</p>
           <ul>${Object.values(STADIUM_SOURCES).map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title}</a></li>`).join("")}</ul>
           <p>References inspected ${STADIUM.inspected}. Premium areas and the field are reference only. Elevator evacuation use is unspecified.</p>
@@ -143,6 +146,12 @@ export class StadiumViewer {
       this.routes.setReferenceVisible((event.target as HTMLDetailsElement).open));
     root.querySelectorAll<HTMLButtonElement>("[data-camera]").forEach(button => button.addEventListener("click", () =>
       this.threeD?.preset(button.dataset.camera as "overview" | "connections" | "gates" | "fit")));
+    root.querySelectorAll<HTMLButtonElement>("[data-lighting]").forEach(button => button.addEventListener("click", () => {
+      const lighting = button.dataset.lighting as StadiumLighting;
+      this.threeD?.setLighting(lighting);
+      root.querySelectorAll<HTMLElement>("[data-lighting]").forEach(control =>
+        control.setAttribute("aria-pressed", String(control.dataset.lighting === lighting)));
+    }));
     root.querySelector("#stadium-follow-person")!.addEventListener("click", () => {
       if (!this.threeD) return;
       this.threeD.setFollowing(!this.threeD.isFollowing); this.updateFollowButton();

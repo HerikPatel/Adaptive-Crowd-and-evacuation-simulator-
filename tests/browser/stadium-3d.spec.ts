@@ -21,6 +21,16 @@ test("2D and lazy 3D share one running simulation, selection, filters and camera
   await page.getByRole("button", { name: "Architectural 3D", exact: true }).click();
   await expect(page.locator("#stadium-3d canvas")).toBeVisible({ timeout: 30000 });
   await expect(page.locator("#stadium-3d-error-text")).toHaveText("");
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-model", "shi-stadium-inspired");
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-crowd-style", "destination-dots");
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-lighting", "day");
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-visible-routes", "1");
+  await page.getByRole("button", { name: "Stadium lights", exact: true }).click();
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-lighting", "night");
+  await expect(page.getByRole("button", { name: "Stadium lights", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: info.outputPath("stadium-3d-night.png"), fullPage: true });
+  await page.getByRole("button", { name: "Day", exact: true }).click();
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-lighting", "day");
   await expect(page.getByRole("button", { name: "Follow selected person", exact: true })).toBeEnabled();
   await page.screenshot({ path: info.outputPath("stadium-3d-overview.png"), fullPage: true });
   await page.getByRole("button", { name: "Follow selected person", exact: true }).click();
@@ -80,6 +90,7 @@ test("connection isolation renders people from actual in-flight transfer state",
   await page.getByLabel("Starting seats", { exact: true }).selectOption("upper-east");
   await page.getByLabel("Playback speed", { exact: true }).selectOption("8");
   await page.getByRole("button", { name: "Architectural 3D", exact: true }).click();
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-visible-routes", "0");
   await page.getByRole("button", { name: "Connections", exact: true }).click();
   await page.getByRole("button", { name: "Start stadium run", exact: true }).click();
   await expect.poll(async () => Number((await page.locator("#stadium-3d").getAttribute("data-visible-transfers")) ?? 0), { timeout: 30000 }).toBeGreaterThan(0);

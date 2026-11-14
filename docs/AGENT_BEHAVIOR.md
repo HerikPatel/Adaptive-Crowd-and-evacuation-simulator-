@@ -48,6 +48,8 @@ The route portion of the individual inspector stays hidden before a run starts. 
 
 `StadiumSimulation.renderFrame()` exposes an immutable presentation snapshot containing person IDs, schematic positions, surfaces, movement/waiting/blocked states, target gates, remaining committed route steps, actual transfer progress, and evacuation outcomes. Calling it cannot advance or mutate the simulation. Both stadium renderers consume this same frame; switching views changes presentation state only.
 
+The 3D renderer applies a separate SHI Stadium-inspired visual projection to those schematic positions. That projection bends seating paths onto a sloped bowl and places upper-deck and concourse movement at distinct elevations; it never writes projected coordinates back to the simulation. Spectators render as small destination-colored dots. A route line is created only for the selected spectator or the distinct committed routes of a selected section.
+
 Destination color never replaces behavioral state. An unassigned person is neutral. Once assigned, the person keeps the chosen gate color while waiting or traveling; outlines and markers communicate waiting, recent closure-driven replacement, selection, or disconnection. Evacuated people leave the active crowd rendering while gate totals retain their outcome.
 
 ## Evidence and limits

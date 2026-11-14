@@ -26,7 +26,7 @@ export function levelShowsSurface(level: StadiumViewLevel, surface: SurfaceId | 
   return surface === level;
 }
 
-/** Illustrative elevations in meters; no surveyed vertical geometry is available. */
+/** Legacy visual constants retained for the 2D-linked presentation contract. */
 export const STADIUM_3D_ASSUMPTIONS = Object.freeze({
   drawingScale: 0.02,
   fieldElevation: 0,
