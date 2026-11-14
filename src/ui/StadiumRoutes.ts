@@ -2,6 +2,8 @@ import { STADIUM, STADIUM_SURFACES, surfaceName, type StadiumFeature, type Stadi
 import { STADIUM_ASSUMPTIONS, type NavigationEdge } from "../maps/stadiumNavigation";
 import { StadiumRouter, type StadiumRoute } from "../pathfinding/StadiumRouter";
 import { StadiumCrowd } from "./StadiumCrowd";
+import type { StadiumRenderFrame } from "../simulation/StadiumSimulation";
+import type { StadiumViewLevel, StadiumViewMode } from "./StadiumVisuals";
 
 /** Route inspection and live movement share the same editable network. */
 export class StadiumRoutes {
@@ -13,8 +15,10 @@ export class StadiumRoutes {
   private controlId: string | undefined;
   private showNetwork = true;
   private showConnections = true;
+  private referenceVisible = false;
 
-  constructor(private root: HTMLElement, private svg: SVGSVGElement, selectFeature: (id: string) => void) {
+  constructor(private root: HTMLElement, private svg: SVGSVGElement, selectFeature: (id: string) => void,
+    selectPerson: (id: number) => void) {
     root.querySelector("#stadium-route-tools")!.innerHTML = `
       <div><label for="stadium-route-from">Route start section</label><select id="stadium-route-from">
         ${STADIUM_SURFACES.filter(s => s.id.startsWith("upper") || s.id === "lower-bowl").map(s => `<optgroup label="${s.name}">${STADIUM.sections.filter(section => section.surfaceId === s.id).map(section => `<option value="${section.id}">${section.name}</option>`).join("")}</optgroup>`).join("")}
@@ -70,7 +74,7 @@ export class StadiumRoutes {
     root.querySelector("#stadium-reset-network")!.addEventListener("click", () => {
       this.crowd.pause(); this.router.reset(); this.crowd.networkChanged(); this.updateControl(); this.render();
     });
-    this.crowd = new StadiumCrowd(root, svg, this.router);
+    this.crowd = new StadiumCrowd(root, svg, this.router, selectPerson);
     this.updateControl();
     this.render();
   }
@@ -84,6 +88,15 @@ export class StadiumRoutes {
 
   update(delta: number, active: boolean) { this.crowd.update(delta, active); }
   pause() { this.crowd.pause(); }
+  renderFrame(): StadiumRenderFrame { return this.crowd.renderFrame(); }
+  getRouter() { return this.router; }
+  setViewMode(mode: StadiumViewMode) { this.crowd.setViewMode(mode); }
+  setViewLevel(level: StadiumViewLevel) { this.crowd.setViewLevel(level); }
+  selectPerson(id: number) { this.crowd.selectPerson(id); }
+  clearPersonSelection() { this.crowd.clearPersonSelection(); }
+  selectSection(id: string | null) { this.crowd.selectSection(id); }
+  get selectedPersonId() { return this.crowd.selectedPersonId; }
+  setReferenceVisible(value: boolean) { this.referenceVisible = value; this.render(); }
 
   inspectFeature(feature?: StadiumFeature) {
     if (feature?.kind === "section") {
@@ -145,7 +158,7 @@ export class StadiumRoutes {
     network.innerHTML = this.showNetwork ? this.router.network.edges.filter(e => this.visible(e) && (!e.transfer || (e.kind === "passage" && this.showConnections)) && e.kind !== "gate").map(e =>
       `<path data-network-edge="${e.id}" class="stadium-network-path ${e.transfer ? "is-transfer" : ""} ${this.router.isClosed(e.id) ? "is-closed" : ""}" d="${this.line(e)}"/>`).join("") : "";
     // Full route stays selected when layers or background overlays change.
-    this.svg.querySelector("#stadium-active-route")!.innerHTML = route ? route.steps.filter(step => this.visible(this.router.edges.get(step.edgeId)!)).map(step => {
+    this.svg.querySelector("#stadium-active-route")!.innerHTML = this.referenceVisible && route ? route.steps.filter(step => this.visible(this.router.edges.get(step.edgeId)!)).map(step => {
       const edge = this.router.edges.get(step.edgeId)!;
       return `<path data-route-edge="${edge.id}" class="stadium-route-path ${edge.transfer ? "is-transfer" : ""}" d="${this.line(edge)}"/>`;
     }).join("") : "";

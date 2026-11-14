@@ -20,9 +20,10 @@ test("live stadium crowd keeps every level advancing and pauses for connection c
   await expect(first).not.toHaveAttribute("cx", initial!);
   await expect(page.locator("#stadium-population")).toBeDisabled();
   await expect.poll(() => elapsed(page)).toBeGreaterThan(15);
+  await page.getByText("Detailed measurements", { exact: true }).click();
   await expect.poll(async () => Number(await page.locator("#stadium-in-transit").innerText())).toBeGreaterThan(0);
   const before = await elapsed(page);
-  await page.getByRole("button", { name: "200 level", exact: true }).click();
+  await page.getByRole("button", { name: "East upper", exact: true }).click();
   await expect(page.locator('#stadium-crowd-agents circle[data-surface="lower-bowl"]:not([hidden])')).toHaveCount(0);
   await expect.poll(() => elapsed(page)).toBeGreaterThan(before + 2);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -53,6 +54,7 @@ test("live stadium crowd keeps every level advancing and pauses for connection c
 test("stadium completion, blocked runs, resume and navigation work on mobile", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
+  await page.getByText("Crowd configuration", { exact: true }).click();
   await page.getByLabel("Spectators", { exact: true }).fill("1");
   await page.getByLabel("Starting seats", { exact: true }).selectOption("lower-bowl");
   await page.getByLabel("Playback speed", { exact: true }).selectOption("8");

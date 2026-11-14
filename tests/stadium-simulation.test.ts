@@ -224,6 +224,25 @@ test("each spectator chooses a personal route only when their response delay exp
   assert.ok(second.committedRoute);
 });
 
+test("read-only render frames expose routes and transfer progress without advancing or changing outcomes", () => {
+  const options = { count: 20, sections: ["section-217"], seed: 549, profileMode: "uniform" as const };
+  const baseline = new StadiumSimulation(undefined, options), observed = new StadiumSimulation(undefined, options);
+  baseline.start(); observed.start();
+  for (let i = 0; i < 2400 && baseline.running; i++) {
+    baseline.update(STADIUM_STEP); observed.update(STADIUM_STEP);
+    const before = JSON.stringify([observed.time, observed.spectators, observed.events]);
+    const frame = observed.renderFrame();
+    assert.equal(JSON.stringify([observed.time, observed.spectators, observed.events]), before);
+    assert.equal(frame.people.length, options.count);
+    assert.equal(frame.population, frame.people.length);
+    assert.ok(frame.people.every(person => person.targetGateId && person.remainingRoute.length || person.movementState === "evacuated"));
+    const inTransfer = frame.people.find(person => person.transferEdgeId);
+    if (inTransfer) assert.ok(inTransfer.transferProgress! >= 0 && inTransfer.transferProgress! <= 1);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify([observed.time, observed.spectators, observed.events])),
+    JSON.parse(JSON.stringify([baseline.time, baseline.spectators, baseline.events])));
+});
+
 test("reducing capacity during a paused run immediately sets the next admission interval", () => {
   const r = new StadiumRouter();
   const s = new StadiumSimulation(r, { count: 20, sections: ["section-217"] }); s.start();

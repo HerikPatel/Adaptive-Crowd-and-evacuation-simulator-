@@ -44,6 +44,12 @@ Closing a gate or transfer invalidates only committed routes whose unfinished st
 
 The route portion of the individual inspector stays hidden before a run starts. Afterward it reports readable route names once that person has chosen, their chosen gate, the current committed plan's estimate labeled as excluding queues, and the latest replacement reason. After evacuation it also reports actual elapsed simulation time from the start of the run, including response delay, movement, queues, closures, and rerouting.
 
+## Presentation contract
+
+`StadiumSimulation.renderFrame()` exposes an immutable presentation snapshot containing person IDs, schematic positions, surfaces, movement/waiting/blocked states, target gates, remaining committed route steps, actual transfer progress, and evacuation outcomes. Calling it cannot advance or mutate the simulation. Both stadium renderers consume this same frame; switching views changes presentation state only.
+
+Destination color never replaces behavioral state. An unassigned person is neutral. Once assigned, the person keeps the chosen gate color while waiting or traveling; outlines and markers communicate waiting, recent closure-driven replacement, selection, or disconnection. Evacuated people leave the active crowd rendering while gate totals retain their outcome.
+
 ## Evidence and limits
 
 [Bohannon (1997), *Comfortable and maximum walking speed of adults aged 20–79 years*](https://pubmed.ncbi.nlm.nih.gov/9143432/) measured 230 healthy volunteers over a short indoor walkway and reported associations with age, height and muscle strength. This motivates individual variation; it does **not** establish the coefficients above or predict an individual's evacuation behavior.

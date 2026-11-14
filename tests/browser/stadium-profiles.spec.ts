@@ -5,6 +5,7 @@ test("individual profiles can be inspected and edited; uniform comparison resets
   await page.goto("/");
   await page.locator("#setup-map").selectOption("stadium");
   await page.getByRole("button", { name: "Open stadium", exact: true }).click();
+  await page.getByText("Crowd configuration", { exact: true }).click();
   await expect(page.getByLabel("Crowd behavior", { exact: true })).toHaveValue("mixed");
   await expect(page.locator("#stadium-speed-summary")).not.toContainText("1.20–1.20");
   await page.getByLabel("Spectators", { exact: true }).fill("3");
@@ -12,8 +13,7 @@ test("individual profiles can be inspected and edited; uniform comparison resets
   await page.getByLabel("Crowd behavior", { exact: true }).selectOption("uniform");
   await expect(page.locator("#stadium-speed-summary")).toContainText("1.20–1.20");
   const seats = await page.locator("#stadium-crowd-agents circle").evaluateAll(circles => circles.map(c => [c.getAttribute("cx"), c.getAttribute("cy")]));
-  await page.getByText("Inspect & edit an individual", { exact: true }).click();
-  await page.getByLabel("Spectator", { exact: true }).selectOption("0");
+  await page.getByLabel("Inspect a spectator", { exact: true }).selectOption("0");
   await expect(page.locator(".stadium-person-route")).toBeHidden();
   await page.getByLabel("Age (years)", { exact: true }).fill("72");
   await page.getByLabel("Height (cm)", { exact: true }).fill("160");
@@ -48,7 +48,7 @@ test("individual profiles can be inspected and edited; uniform comparison resets
   await page.getByLabel("Crowd behavior", { exact: true }).selectOption("mixed");
   expect(await page.locator("#stadium-crowd-agents circle").evaluateAll(circles => circles.map(c => [c.getAttribute("cx"), c.getAttribute("cy")]))).toEqual(seats);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByLabel("Spectator", { exact: true }).selectOption("2");
+  await page.getByLabel("Inspect a spectator", { exact: true }).selectOption("2");
   await expect(page.locator("#stadium-person-status")).toContainText("Spectator 3");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("stadium-individual-profile-mobile.png"), fullPage: true });

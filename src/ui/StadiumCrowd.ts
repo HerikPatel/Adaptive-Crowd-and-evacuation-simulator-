@@ -1,7 +1,8 @@
 import { STADIUM, STADIUM_SURFACES, type StadiumLayer } from "../maps/stadium";
 import { StadiumRouter } from "../pathfinding/StadiumRouter";
-import { StadiumSimulation, STADIUM_STEP, type StadiumRunOptions } from "../simulation/StadiumSimulation";
+import { StadiumSimulation, STADIUM_STEP, type StadiumRenderFrame, type StadiumRunOptions } from "../simulation/StadiumSimulation";
 import { bodyRadius, walkingSpeed, PROFILE_SOURCE, type CrowdProfile, type Gender } from "../simulation/PersonProfile";
+import { destinationColor, levelShowsSurface, type StadiumViewLevel, type StadiumViewMode } from "./StadiumVisuals";
 
 /** Presentation only: switching layers never changes the simulation's surface membership. */
 export class StadiumCrowd {
@@ -17,17 +18,24 @@ export class StadiumCrowd {
   private speed: HTMLSelectElement;
   private profileMode: HTMLSelectElement;
   private personPicker: HTMLSelectElement;
+  private viewMode: StadiumViewMode = "2d";
+  private selectedSectionId: string | null = null;
+  private selectedPersonIdValue: number | null = null;
+  private viewLevel: StadiumViewLevel = "overview";
 
-  constructor(private root: HTMLElement, private svg: SVGSVGElement, private router: StadiumRouter) {
+  constructor(private root: HTMLElement, private svg: SVGSVGElement, private router: StadiumRouter,
+    private onSelectPerson: (id: number) => void = () => {}) {
     this.simulation = new StadiumSimulation(router);
     root.querySelector("#stadium-crowd-controls")!.innerHTML = `
       <form id="stadium-run-form" class="stadium-run-form">
-        <div><label for="stadium-population">Spectators</label><input id="stadium-population" type="number" min="1" max="1000" step="1" value="100" required aria-describedby="stadium-population-help"></div>
-        <div><label for="stadium-origin">Starting seats</label><select id="stadium-origin"><option value="all">All seating levels</option><option value="lower-bowl">Lower bowl</option><option value="upper-east">East upper deck</option><option value="upper-west">West upper deck</option><option value="mixed">Sections 101 + 217</option></select></div>
-        <div><label for="stadium-speed">Playback speed</label><select id="stadium-speed"><option value="1">1×</option><option value="4">4×</option><option value="8">8×</option></select></div>
-        <div class="stadium-profile-choice"><label for="stadium-profile-mode">Crowd behavior</label><select id="stadium-profile-mode"><option value="mixed">Individual profiles · synthetic adult mix</option><option value="uniform">Uniform comparison · 1.2 m/s</option></select></div>
-        <div class="stadium-run-actions"><button type="submit" id="stadium-run-start" class="primary">Start stadium run</button><button type="button" id="stadium-run-pause" disabled>Pause</button><button type="button" id="stadium-run-reset">Reset crowd</button></div>
-      </form><p id="stadium-population-help" class="field-help"></p><p id="stadium-run-error" class="error" role="alert"></p>
+        <div class="stadium-run-actions"><button type="submit" id="stadium-run-start" class="primary">Start stadium run</button><button type="button" id="stadium-run-pause" disabled>Pause</button><button type="button" id="stadium-run-reset">Reset crowd</button>
+          <label for="stadium-speed">Playback speed</label><select id="stadium-speed"><option value="1">1×</option><option value="4">4×</option><option value="8">8×</option></select></div>
+        <details class="stadium-config-panel"><summary>Crowd configuration</summary><div class="stadium-config-grid">
+          <div><label for="stadium-population">Spectators</label><input id="stadium-population" type="number" min="1" max="1000" step="1" value="100" required aria-describedby="stadium-population-help"></div>
+          <div><label for="stadium-origin">Starting seats</label><select id="stadium-origin"><option value="all">All seating levels</option><option value="lower-bowl">Lower bowl</option><option value="upper-east">East upper deck</option><option value="upper-west">West upper deck</option><option value="mixed">Sections 101 + 217</option></select></div>
+          <div class="stadium-profile-choice"><label for="stadium-profile-mode">Crowd behavior</label><select id="stadium-profile-mode"><option value="mixed">Individual profiles · synthetic adult mix</option><option value="uniform">Uniform comparison · 1.2 m/s</option></select></div>
+        </div><p id="stadium-population-help" class="field-help"></p></details>
+      </form><p id="stadium-run-error" class="error" role="alert"></p>
       <div class="stadium-run-progress"><strong id="stadium-run-status" role="status">Ready</strong><span>Simulation time <output id="stadium-run-time">0.0 s</output></span><label for="stadium-run-progress">Outside <output id="stadium-run-count">0 / 100</output></label><progress id="stadium-run-progress" max="100" value="0"></progress></div>`;
     root.querySelector("#stadium-crowd-stats")!.innerHTML = `
       <h3>Live stadium counts</h3><p class="field-help">Counts include every level, even when hidden. In-transit people belong to a connector until they reach its landing.</p>
@@ -65,13 +73,13 @@ export class StadiumCrowd {
     this.speed = root.querySelector("#stadium-speed")!;
     this.profileMode = root.querySelector("#stadium-profile-mode")!;
     this.personPicker = root.querySelector("#stadium-person-picker")!;
-    this.personPicker.addEventListener("change", () => { this.showProfile(); this.render(); });
+    this.personPicker.addEventListener("change", () => {
+      this.onSelectPerson(Number(this.personPicker.value)); this.showProfile(); this.render();
+    });
     svg.addEventListener("click", event => {
       const circle = (event.target as Element).closest<SVGCircleElement>("[data-person]");
       if (!circle) return;
-      this.personPicker.value = circle.dataset.person!;
-      root.querySelector<HTMLDetailsElement>(".stadium-profile-panel")!.open = true;
-      this.showProfile(); this.render();
+      this.onSelectPerson(Number(circle.dataset.person));
     });
     root.querySelector("#stadium-person-form")!.addEventListener("submit", event => {
       event.preventDefault();
@@ -131,9 +139,15 @@ export class StadiumCrowd {
     this.circles = this.simulation.spectators.map(p => {
       const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       circle.dataset.person = String(p.id);
+      circle.dataset.section = p.sectionId;
+      circle.setAttribute("role", "button"); circle.setAttribute("tabindex", "0");
       const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
       title.textContent = `Spectator ${p.id + 1} · ${p.sectionId.replace("section-", "Section ")}`;
       circle.append(title);
+      circle.addEventListener("click", event => { event.stopPropagation(); this.onSelectPerson(p.id); });
+      circle.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); this.onSelectPerson(p.id); }
+      });
       return circle;
     });
     this.svg.querySelector("#stadium-crowd-agents")!.replaceChildren(...this.circles);
@@ -150,6 +164,17 @@ export class StadiumCrowd {
   pause() { this.simulation.pause(); this.accumulator = 0; this.render(); }
   networkChanged() { this.simulation.refreshRoutes(); this.render(); }
   setLayer(layer: StadiumLayer) { this.layer = layer; this.render(); }
+  setViewLevel(level: StadiumViewLevel) { this.viewLevel = level; this.render(); }
+  setViewMode(mode: StadiumViewMode) { this.viewMode = mode; this.render(); }
+  selectPerson(id: number) {
+    if (!this.simulation.spectators.some(person => person.id === id)) return;
+    this.selectedSectionId = null; this.selectedPersonIdValue = id;
+    this.personPicker.value = String(id); this.showProfile(); this.render();
+  }
+  clearPersonSelection() { this.selectedPersonIdValue = null; this.render(); }
+  selectSection(id: string | null) { this.selectedSectionId = id; this.selectedPersonIdValue = null; this.render(); }
+  get selectedPersonId() { return this.selectedPersonIdValue; }
+  renderFrame(): StadiumRenderFrame { return this.simulation.renderFrame(); }
 
   update(delta: number, active: boolean) {
     if (!active) {
@@ -167,20 +192,28 @@ export class StadiumCrowd {
   }
 
   private render() {
-    const s = this.simulation, m = s.snapshot();
-    for (const p of s.spectators) {
+    const s = this.simulation, m = s.snapshot(), frame = s.renderFrame();
+    if (this.viewMode === "2d") for (const p of s.spectators) {
       const circle = this.circles[p.id], surface = s.surfaceOf(p), state = p.state;
+      const rendered = frame.people[p.id];
       const layers = state.kind === "transfer" ? [state.step.from, state.step.to].map(id =>
         STADIUM_SURFACES.find(level => level.id === this.router.nodes.get(id)!.surfaceId)!.layer)
         : [STADIUM_SURFACES.find(level => level.id === surface)?.layer];
-      circle.toggleAttribute("hidden", state.kind === "evacuated" || (this.layer !== "overview" && !layers.includes(this.layer)));
+      const visibleLevel = this.viewLevel === "connections" ? state.kind === "transfer"
+        : levelShowsSurface(this.viewLevel, surface);
+      circle.toggleAttribute("hidden", state.kind === "evacuated" || !visibleLevel ||
+        (this.viewLevel === "overview" && this.layer !== "overview" && !layers.includes(this.layer)));
       const point = s.position(p);
       circle.setAttribute("cx", point.x.toFixed(2)); circle.setAttribute("cy", point.y.toFixed(2));
       circle.setAttribute("r", String(bodyRadius(p.profile) / 0.2));
-      circle.dataset.selected = String(p.id === Number(this.personPicker.value));
+      circle.dataset.selected = String(p.id === this.selectedPersonIdValue);
+      circle.dataset.sectionSelected = String(this.selectedSectionId === p.sectionId);
       circle.dataset.state = p.stranded ? "stranded" : state.kind === "transfer" ? "transfer" : p.waiting ? "waiting" : "moving";
+      circle.dataset.gate = rendered.targetGateId ?? "unassigned";
+      circle.style.setProperty("--destination", destinationColor(rendered.targetGateId));
       circle.dataset.surface = surface ?? "in-transit";
     }
+    if (this.viewMode === "2d") this.renderSelectedRoutes(frame);
     this.population.disabled = this.origin.disabled = this.profileMode.disabled = s.running;
     this.root.querySelector<HTMLFieldSetElement>("#stadium-person-fields")!.disabled = s.running || s.time > 0;
     const person = s.spectators[Number(this.personPicker.value)];
@@ -213,6 +246,31 @@ export class StadiumCrowd {
     this.root.querySelector("#stadium-mean-time")!.textContent = m.averageEvacuationSeconds === null ? "—" : `${m.averageEvacuationSeconds.toFixed(1)} s`;
     this.root.querySelector("#stadium-transfer-counts")!.innerHTML = Object.entries(m.transfers).filter(([, counts]) => counts.traveling || counts.waiting).map(([id, counts]) =>
       `<p>${this.router.edges.get(id)!.name}: ${counts.waiting} at entry · ${counts.traveling} in transit</p>`).join("") || "<p>No occupied transfers.</p>";
-    this.root.querySelector("#stadium-gate-counts")!.innerHTML = STADIUM.gates.map(g => `<div><span>${g.name}</span><strong>${m.exits[g.id]}</strong></div>`).join("");
+    this.root.querySelector("#stadium-gate-counts")!.innerHTML = STADIUM.gates.map(g => `<div style="--destination:${destinationColor(g.id)}"><span>${g.name}</span><strong>${m.exits[g.id]}</strong></div>`).join("");
+    const warning = this.root.querySelector<HTMLElement>("#stadium-blocked-warning");
+    if (warning) { warning.hidden = m.stranded === 0; warning.textContent = m.stranded ? `Blocked route warning: ${m.stranded} spectator${m.stranded === 1 ? "" : "s"} currently have no open route.` : ""; }
+  }
+
+  private renderSelectedRoutes(frame: StadiumRenderFrame) {
+    const group = this.svg.querySelector("#stadium-committed-routes")!;
+    const markers = this.svg.querySelector("#stadium-state-markers")!;
+    const selected = this.selectedSectionId
+      ? frame.people.filter(person => person.sectionId === this.selectedSectionId)
+      : this.selectedPersonIdValue === null ? [] : frame.people.filter(person => person.id === this.selectedPersonIdValue);
+    const unique = new Map<string, (typeof selected)[number]>();
+    for (const person of selected) {
+      const key = person.remainingRoute.map(step => step.edgeId).join("|");
+      if (key && !unique.has(key)) unique.set(key, person);
+    }
+    group.innerHTML = [...unique.values()].flatMap(person => person.remainingRoute.map(step => {
+      const edge = this.router.edges.get(step.edgeId)!;
+      const points = step.from === edge.from ? edge.points : [...edge.points].reverse();
+      const d = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+      return `<path class="stadium-committed-route ${edge.transfer ? "is-transfer" : ""}" data-gate="${person.targetGateId ?? "unassigned"}" style="--destination:${destinationColor(person.targetGateId)}" d="${d}"/>`;
+    })).join("");
+    markers.innerHTML = frame.people.filter(person => person.movementState !== "evacuated" && (person.rerouting || person.stranded)).map(person => {
+      const size = person.stranded ? 7 : 5, p = person.position;
+      return `<path class="stadium-state-marker ${person.stranded ? "is-blocked" : "is-rerouting"}" data-person-marker="${person.id}" d="M${p.x} ${p.y - size}L${p.x + size} ${p.y}L${p.x} ${p.y + size}L${p.x - size} ${p.y}Z"/>`;
+    }).join("");
   }
 }

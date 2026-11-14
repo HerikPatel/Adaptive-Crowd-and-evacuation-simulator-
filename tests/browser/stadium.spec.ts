@@ -20,7 +20,7 @@ test("stadium layers, feature inspection, keyboard selection, pan and zoom", asy
   await expect(details).toContainText("Unknown");
   await expect(details.getByRole("link", { name: "Rutgers stadium map" })).toHaveAttribute("href", /scarletknights.com/);
   await page.screenshot({ path: info.outputPath("stadium-overview.png"), fullPage: true });
-  await page.getByRole("button", { name: "200 level", exact: true }).click();
+  await page.getByRole("button", { name: "East upper", exact: true }).click();
   await expect(page.locator('[data-feature="section-101"]')).toBeHidden();
   await expect(page.getByRole("button", { name: "Section 217", exact: true })).toBeVisible();
   await expect(page.locator('[data-feature="gate-west"]')).toBeHidden();
@@ -30,10 +30,12 @@ test("stadium layers, feature inspection, keyboard selection, pan and zoom", asy
   await expect(details).toContainText("East upper deck");
   await expect(details).toContainText("Concourse");
   await expect(details).toContainText("PROPOSED CONNECTION");
+  await page.getByText("Display settings", { exact: true }).click();
   await page.getByLabel("Proposed connections", { exact: true }).uncheck();
   await expect(page.locator('[data-feature="ramp-east"]')).toBeHidden();
   await expect(picker).toHaveValue("");
   await page.getByLabel("Proposed connections", { exact: true }).check();
+  await page.getByRole("button", { name: "West upper", exact: true }).click();
   const section = page.getByRole("button", { name: "Section 201", exact: true });
   await section.focus();
   await page.keyboard.press("Enter");
@@ -43,7 +45,7 @@ test("stadium layers, feature inspection, keyboard selection, pan and zoom", asy
   await page.getByLabel("Section labels", { exact: true }).uncheck();
   await expect(section.locator("text")).toBeHidden();
   await page.getByLabel("Section labels", { exact: true }).check();
-  await page.getByRole("button", { name: "Concourse & gates", exact: true }).click();
+  await page.getByRole("button", { name: "Concourse / gates", exact: true }).click();
   await picker.selectOption("gate-west");
   await expect(details).toContainText("A, B");
   await expect(page.locator('[data-feature="section-201"]')).toBeHidden();
@@ -75,7 +77,7 @@ test("mobile map inspection preserves draft experiment settings and can return t
   await page.locator("#setup-map").selectOption("stadium");
   await page.screenshot({ path: info.outputPath("stadium-map-choice-mobile.png"), fullPage: true });
   await page.getByRole("button", { name: "Open stadium" }).click();
-  await page.getByRole("button", { name: "100 level", exact: true }).click();
+  await page.getByRole("button", { name: "Lower bowl", exact: true }).click();
   await page.getByLabel("Inspect a section, gate or connection").selectOption("elevator-138");
   await expect(page.locator("#stadium-feature-details")).toContainText("Unspecified");
   await expect(page.locator("#stadium-feature-details")).toContainText("Reference only");

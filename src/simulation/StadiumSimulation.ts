@@ -26,8 +26,34 @@ export interface StadiumSpectator {
   routeProgress: number;
   replacementReason: string | null;
   pendingReplacementReason: string | null;
+  routeReplacedAt: number | null;
   stranded: boolean;
   waiting: boolean;
+}
+export interface StadiumRenderPerson {
+  readonly id: number;
+  readonly sectionId: string;
+  readonly position: Readonly<Point>;
+  readonly surfaceId: SurfaceId | null;
+  readonly movementState: SpectatorState["kind"];
+  readonly waiting: boolean;
+  readonly stranded: boolean;
+  readonly rerouting: boolean;
+  readonly targetGateId: string | null;
+  readonly remainingRoute: readonly StadiumRouteStep[];
+  readonly transferProgress: number | null;
+  readonly transferEdgeId: string | null;
+  readonly evacuatedAt: number | null;
+}
+export interface StadiumRenderFrame {
+  readonly time: number;
+  readonly running: boolean;
+  readonly hasStarted: boolean;
+  readonly population: number;
+  readonly evacuated: number;
+  readonly waiting: number;
+  readonly stranded: number;
+  readonly people: readonly StadiumRenderPerson[];
 }
 export interface StadiumRunOptions { count: number; sections?: string[]; seed?: number; profileMode?: CrowdProfile }
 export interface StadiumEvent { personId: number; edgeId: string; kind: "enter" | "leave" | "evacuate"; time: number }
@@ -144,7 +170,7 @@ export class StadiumSimulation {
       people.push({ id: people.length, sectionId, seat: { ...seat },
         profile: createProfile(options.seed ?? 549, people.length, profileMode),
         state: { kind: "seated", nodeId: this.router.network.sectionNodes[sectionId] },
-        committedRoute: null, routeProgress: 0, replacementReason: null, pendingReplacementReason: null,
+        committedRoute: null, routeProgress: 0, replacementReason: null, pendingReplacementReason: null, routeReplacedAt: null,
         stranded: false, waiting: true });
     }
     // Validation and preparation happen before changing a live run.
@@ -176,7 +202,7 @@ export class StadiumSimulation {
     if (p.state.kind !== "seated" && p.state.kind !== "node" && p.state.kind !== "approaching")
       throw new Error("Reset the crowd before editing a person's profile.");
     p.profile = { ...profile };
-    p.committedRoute = null; p.routeProgress = 0; p.replacementReason = null; p.pendingReplacementReason = null;
+    p.committedRoute = null; p.routeProgress = 0; p.replacementReason = null; p.pendingReplacementReason = null; p.routeReplacedAt = null;
     p.stranded = false;
     this.rebuildBodies();
   }
@@ -243,6 +269,7 @@ export class StadiumSimulation {
     p.committedRoute = route; p.routeProgress = 0; p.pendingReplacementReason = null;
     p.stranded = !route;
     p.replacementReason = route ? reason : "Route disconnected";
+    if (route && reason) p.routeReplacedAt = this.time;
     return route;
   }
   private nextStep(p: StadiumSpectator) {
@@ -424,5 +451,33 @@ export class StadiumSimulation {
       collisionWaits: this.collisionWaits, minSpeed: Math.min(...speeds), maxSpeed: Math.max(...speeds), meanSpeed: speeds.reduce((a, b) => a + b, 0) / speeds.length,
       onSurface: this.spectators.length - evacuated - inTransfer, surfaces, exits, transfers,
       averageEvacuationSeconds: evacuated ? totalEvacuationSeconds / evacuated : null };
+  }
+
+  /** Immutable presentation snapshot shared by the 2D and 3D renderers. */
+  renderFrame(): StadiumRenderFrame {
+    const snapshot = this.snapshot();
+    const people = this.spectators.map<StadiumRenderPerson>(p => {
+      const state = p.state;
+      const transfer = state.kind === "transfer";
+      const route = p.committedRoute;
+      return Object.freeze({
+        id: p.id,
+        sectionId: p.sectionId,
+        position: Object.freeze({ ...this.position(p) }),
+        surfaceId: this.surfaceOf(p),
+        movementState: state.kind,
+        waiting: p.waiting,
+        stranded: p.stranded,
+        rerouting: p.routeReplacedAt !== null && this.time - p.routeReplacedAt <= 3 && state.kind !== "evacuated",
+        targetGateId: state.kind === "evacuated" ? state.gateId : route?.gateId ?? null,
+        remainingRoute: Object.freeze(route?.steps.slice(p.routeProgress).map(step => Object.freeze({ ...step })) ?? []),
+        transferProgress: transfer ? Math.max(0, Math.min(1, state.distance / this.lengths.get(state.step.edgeId)!)) : null,
+        transferEdgeId: transfer ? state.step.edgeId : null,
+        evacuatedAt: state.kind === "evacuated" ? state.at : null,
+      });
+    });
+    return Object.freeze({ time: this.time, running: this.running, hasStarted: this.hasStarted,
+      population: snapshot.population, evacuated: snapshot.evacuated, waiting: snapshot.waiting,
+      stranded: snapshot.stranded, people: Object.freeze(people) });
   }
 }
