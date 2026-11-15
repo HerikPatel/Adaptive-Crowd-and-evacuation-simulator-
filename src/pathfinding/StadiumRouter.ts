@@ -1,6 +1,7 @@
 import { PriorityQueue } from "./PriorityQueue";
-import { STADIUM_ASSUMPTIONS, createStadiumNetwork, drawingLength, validateStadiumNetwork,
+import { STADIUM_ASSUMPTIONS, createStadiumNetwork, validateStadiumNetwork,
   type NavigationEdge, type StadiumNetwork, type TransferParameters } from "../maps/stadiumNavigation";
+import { transferDuration } from "../simulation/StadiumPhysicalGeometry";
 
 export interface StadiumRouteStep { edgeId: string; from: string; to: string }
 export interface StadiumRoutingContext { walkingSpeedMetersPerSecond: number }
@@ -83,8 +84,8 @@ export class StadiumRouter {
     const speed = this.speed(context);
     const transfer = this.parameters(edge.id);
     return transfer
-      ? transfer.travelSeconds * Math.max(1, STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond / speed)
-      : drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit / speed;
+      ? transferDuration(edge.physicalPath.length, speed, transfer.travelSeconds)
+      : edge.physicalPath.length / speed;
   }
 
   /** Dijkstra: explicit positive transfer costs; drawing intersections never create neighbors. */
@@ -128,7 +129,7 @@ export class StadiumRouter {
     for (const step of steps) {
       const edge = this.edges.get(step.edgeId)!;
       if (edge.transfer) transferSeconds += this.edgeSeconds(edge, context);
-      else assumedWalkMeters += drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit;
+      else assumedWalkMeters += edge.physicalPath.length;
     }
     return { sectionId: start, gateId: Object.keys(this.network.gateNodes).find(id => this.network.gateNodes[id] === end)!,
       steps, assumedWalkMeters, transferSeconds, freeFlowSeconds: costs.get(end)! };

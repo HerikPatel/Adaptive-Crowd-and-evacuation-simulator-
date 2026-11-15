@@ -24,6 +24,8 @@ test("2D and lazy 3D share one running simulation, selection, filters and camera
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-model", "shi-stadium-inspired");
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-crowd-style", "destination-dots");
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-lighting", "day");
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-cutaway", "true");
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-camera", "person-follow");
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-visible-routes", "1");
   await page.getByRole("button", { name: "Stadium lights", exact: true }).click();
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-lighting", "night");
@@ -31,10 +33,10 @@ test("2D and lazy 3D share one running simulation, selection, filters and camera
   await page.screenshot({ path: info.outputPath("stadium-3d-night.png"), fullPage: true });
   await page.getByRole("button", { name: "Day", exact: true }).click();
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-lighting", "day");
-  await expect(page.getByRole("button", { name: "Follow selected person", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Follow selected person", exact: true })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("stadium-3d-overview.png"), fullPage: true });
-  await page.getByRole("button", { name: "Follow selected person", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Stop following", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Full architecture", exact: true }).click();
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-cutaway", "false");
   await page.getByRole("button", { name: "Connections", exact: true }).click();
   await page.getByRole("button", { name: "Connectors", exact: true }).click();
   await expect.poll(async () => parseFloat(await page.locator("#stadium-run-time").innerText())).toBeGreaterThan(before3d);
@@ -45,6 +47,7 @@ test("2D and lazy 3D share one running simulation, selection, filters and camera
   await expect(page.locator("#stadium-run-count")).toHaveText(count);
   await page.getByRole("button", { name: "Architectural 3D", exact: true }).click();
   await expect(page.locator("#stadium-3d canvas")).toBeVisible();
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-cutaway", "true");
   await page.screenshot({ path: info.outputPath("stadium-3d-linked.png"), fullPage: true });
   expect(errors).toEqual([]);
 });
@@ -76,11 +79,10 @@ test("follow camera returns to overview when the selected spectator evacuates", 
   await page.getByRole("button", { name: "Architectural 3D", exact: true }).click();
   await expect(page.locator("#stadium-3d canvas")).toBeVisible();
   await page.getByRole("button", { name: "Start stadium run", exact: true }).click();
-  await page.getByRole("button", { name: "Follow selected person", exact: true }).click();
+  await expect(page.locator("#stadium-3d")).toHaveAttribute("data-camera", "person-follow");
   await expect(page.locator("#stadium-run-status")).toHaveText("Evacuation complete", { timeout: 30000 });
-  await expect(page.getByRole("button", { name: "Follow selected person", exact: true })).toBeDisabled();
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-camera", "overview");
-  await expect(page.locator("#stadium-person-actual")).not.toHaveText("—");
+  await expect(page.getByLabel("Inspect a spectator", { exact: true })).toHaveValue("");
 });
 
 test("connection isolation renders people from actual in-flight transfer state", async ({ page }, info) => {

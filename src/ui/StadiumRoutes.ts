@@ -4,6 +4,7 @@ import { StadiumRouter, type StadiumRoute } from "../pathfinding/StadiumRouter";
 import { StadiumCrowd } from "./StadiumCrowd";
 import type { StadiumRenderFrame } from "../simulation/StadiumSimulation";
 import type { StadiumViewLevel, StadiumViewMode } from "./StadiumVisuals";
+import { physicalToSvg } from "../simulation/StadiumPhysicalGeometry";
 
 /** Route inspection and live movement share the same editable network. */
 export class StadiumRoutes {
@@ -134,7 +135,8 @@ export class StadiumRoutes {
   }
 
   private line(edge: NavigationEdge): string {
-    return edge.points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+    return edge.points.map((p, i) => { const projected = physicalToSvg({ x: p.x, z: p.y });
+      return `${i ? "L" : "M"}${projected.x.toFixed(2)} ${projected.y.toFixed(2)}`; }).join(" ");
   }
 
   private itinerary(route: StadiumRoute): string {
@@ -186,4 +188,4 @@ export class StadiumRoutes {
   }
 }
 
-export const stadiumAssumptionsText = `All route geometry and dimensions are assumptions: ${STADIUM_ASSUMPTIONS.metersPerUnit} m per drawing unit; route-inspection reference speed ${STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond} m/s; aisles ${STADIUM_ASSUMPTIONS.aisleWidthMeters} m, access walks ${STADIUM_ASSUMPTIONS.walkwayWidthMeters} m, concourse ${STADIUM_ASSUMPTIONS.concourseWidthMeters} m wide. Individual profiles vary walking speed, response delay and body size. Continuous body-clearance checks and reserved junctions constrain movement; slower walkers can delay a queue. Transfer rates and minimum times remain enforced. Seat access and population profiles are synthetic. These are experimental inputs, not measured stadium dimensions or validated evacuation predictions.`;
+export const stadiumAssumptionsText = `All physical geometry and dimensions are explicit schematic assumptions. The published source drawing was initially converted at 0.2 m per source unit, then reoriented north-up. Route-inspection reference speed is ${STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond} m/s; aisles are ${STADIUM_ASSUMPTIONS.aisleWidthMeters} m, access walks ${STADIUM_ASSUMPTIONS.walkwayWidthMeters} m, and the concourse ${STADIUM_ASSUMPTIONS.concourseWidthMeters} m wide. Individual profiles vary walking speed, response delay and body size. Continuous body-clearance checks and reserved junctions constrain movement; slower walkers can delay a queue. Transfer rates and physical-length-aware minimum times remain enforced. Seats and population profiles are synthetic. These are not surveyed dimensions or validated evacuation predictions.`;

@@ -3,6 +3,7 @@ import { StadiumRouter } from "../pathfinding/StadiumRouter";
 import { StadiumSimulation, STADIUM_STEP, type StadiumRenderFrame, type StadiumRunOptions } from "../simulation/StadiumSimulation";
 import { bodyRadius, walkingSpeed, PROFILE_SOURCE, type CrowdProfile, type Gender } from "../simulation/PersonProfile";
 import { destinationColor, levelShowsSurface, type StadiumViewLevel, type StadiumViewMode } from "./StadiumVisuals";
+import { physicalToSvg } from "../simulation/StadiumPhysicalGeometry";
 
 /** Presentation only: switching layers never changes the simulation's surface membership. */
 export class StadiumCrowd {
@@ -43,7 +44,7 @@ export class StadiumCrowd {
       <p id="stadium-speed-summary" class="field-help"></p>
       <div class="stadium-run-totals"><span>Waiting <strong id="stadium-waiting">0</strong></span><span>Without a route <strong id="stadium-stranded">0</strong></span><span>Mean exit time <strong id="stadium-mean-time">—</strong></span></div>
       <details><summary>Transfer occupancy & gate use</summary><p class="field-help">Entry waiting counts the person at each transfer entrance; longer upstream queues are included in total waiting. Transfer travel times are minimums: slower walkers and a busy landing can delay arrival.</p><div id="stadium-transfer-counts"></div><div id="stadium-gate-counts" class="stadium-counts"></div></details>
-      <details class="stadium-profile-panel"><summary>Inspect & edit an individual</summary>
+      <details class="stadium-profile-panel"><summary>Selected spectator journey</summary>
         <label for="stadium-person-picker">Spectator</label><select id="stadium-person-picker"></select>
         <p id="stadium-person-status" class="field-help"></p>
         <div class="stadium-person-route" aria-live="polite" hidden>
@@ -53,7 +54,7 @@ export class StadiumCrowd {
           <p><strong>Replacement reason:</strong> <span id="stadium-person-replacement">None</span></p>
           <p><strong>Actual evacuation time:</strong> <span id="stadium-person-actual">—</span></p>
         </div>
-        <form id="stadium-person-form"><fieldset id="stadium-person-fields" class="stadium-person-fields">
+        <details class="stadium-person-editor"><summary>Edit profile before the run</summary><form id="stadium-person-form"><fieldset id="stadium-person-fields" class="stadium-person-fields">
           <div><label for="person-age">Age (years)</label><input id="person-age" type="number" min="18" max="85" step="1" required></div>
           <div><label for="person-gender">Gender label</label><select id="person-gender"><option value="woman">Woman</option><option value="man">Man</option><option value="unspecified">Unspecified</option></select></div>
           <div><label for="person-height">Height (cm)</label><input id="person-height" type="number" min="130" max="210" step="1" required></div>
@@ -64,6 +65,7 @@ export class StadiumCrowd {
           <button type="submit">Apply person profile</button>
         </fieldset></form><p id="stadium-person-message" role="status" class="field-help"></p>
         <p class="field-help">Edit before starting; reset the crowd to edit again. Changes apply to this run. Preferred speed is a target: queues can slow someone down.</p>
+        </details>
       </details><details class="stadium-profile-panel"><summary>Profile assumptions & evidence</summary>
         <p class="field-help">Synthetic adult population, ages 18–85. Age mix: 30% ages 18–29, 30% ages 30–44, 25% ages 45–64, 15% ages 65–85. Height, body mass, personal pace and response delays vary with a fixed seed. These are scenario assumptions, not Rutgers attendance data.</p>
         <p class="field-help">Age, height and mass adjust an assumed walking-speed estimate. Gender labels are descriptive and do not change speed. The formula and circular body sizes are illustrative, not validated individual predictions. A speed override supports controlled comparisons.</p>
@@ -203,7 +205,7 @@ export class StadiumCrowd {
         : levelShowsSurface(this.viewLevel, surface);
       circle.toggleAttribute("hidden", state.kind === "evacuated" || !visibleLevel ||
         (this.viewLevel === "overview" && this.layer !== "overview" && !layers.includes(this.layer)));
-      const point = s.position(p);
+      const physical = s.position(p), point = physicalToSvg({ x: physical.x, z: physical.y });
       circle.setAttribute("cx", point.x.toFixed(2)); circle.setAttribute("cy", point.y.toFixed(2));
       circle.setAttribute("r", String(bodyRadius(p.profile) / 0.2));
       circle.dataset.selected = String(p.id === this.selectedPersonIdValue);
@@ -265,11 +267,12 @@ export class StadiumCrowd {
     group.innerHTML = [...unique.values()].flatMap(person => person.remainingRoute.map(step => {
       const edge = this.router.edges.get(step.edgeId)!;
       const points = step.from === edge.from ? edge.points : [...edge.points].reverse();
-      const d = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+      const d = points.map((point, index) => { const projected = physicalToSvg({ x: point.x, z: point.y });
+        return `${index ? "L" : "M"}${projected.x.toFixed(2)} ${projected.y.toFixed(2)}`; }).join(" ");
       return `<path class="stadium-committed-route ${edge.transfer ? "is-transfer" : ""}" data-gate="${person.targetGateId ?? "unassigned"}" style="--destination:${destinationColor(person.targetGateId)}" d="${d}"/>`;
     })).join("");
     markers.innerHTML = frame.people.filter(person => person.movementState !== "evacuated" && (person.rerouting || person.stranded)).map(person => {
-      const size = person.stranded ? 7 : 5, p = person.position;
+      const size = person.stranded ? 7 : 5, p = physicalToSvg(person.position);
       return `<path class="stadium-state-marker ${person.stranded ? "is-blocked" : "is-rerouting"}" data-person-marker="${person.id}" d="M${p.x} ${p.y - size}L${p.x + size} ${p.y}L${p.x} ${p.y + size}L${p.x - size} ${p.y}Z"/>`;
     }).join("");
   }

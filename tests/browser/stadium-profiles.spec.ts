@@ -15,6 +15,7 @@ test("individual profiles can be inspected and edited; uniform comparison resets
   const seats = await page.locator("#stadium-crowd-agents circle").evaluateAll(circles => circles.map(c => [c.getAttribute("cx"), c.getAttribute("cy")]));
   await page.getByLabel("Inspect a spectator", { exact: true }).selectOption("0");
   await expect(page.locator(".stadium-person-route")).toBeHidden();
+  await page.getByText("Edit profile before the run", { exact: true }).click();
   await page.getByLabel("Age (years)", { exact: true }).fill("72");
   await page.getByLabel("Height (cm)", { exact: true }).fill("160");
   await page.getByLabel("Weight (kg)", { exact: true }).fill("80");

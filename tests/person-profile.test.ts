@@ -72,7 +72,9 @@ test("mixed bodies remain separated at every step through seats, turns, transfer
     for (const p of s.spectators) {
       if (p.state.kind === "evacuated") continue;
       const zone = p.state.kind === "transfer" ? `transfer:${p.state.step.edgeId}` : s.surfaceOf(p)!;
-      const position = s.position(p), at = { x: position.x * 0.2, y: position.y * 0.2 };
+      // Stadium positions are now simulation-owned physical metres rather than
+      // legacy drawing units, so body-clearance checks use them directly.
+      const position = s.position(p), at = { x: position.x, y: position.y };
       assert.ok(bodies.fits(p.id, zone, at, bodyRadius(p.profile)), `overlap at ${s.time.toFixed(3)}s, person ${p.id}, ${JSON.stringify(p.state)}`);
       bodies.set(p.id, zone, at, bodyRadius(p.profile));
     }

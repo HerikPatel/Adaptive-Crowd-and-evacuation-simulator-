@@ -51,6 +51,9 @@ test("stadium layers, feature inspection, keyboard selection, pan and zoom", asy
   await expect(page.locator('[data-feature="section-201"]')).toBeHidden();
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   const svg = page.locator("#stadium-map");
+  // Section selection intentionally auto-frames at a close zoom. Reset before
+  // independently checking the manual pan/zoom controls.
+  await page.getByRole("button", { name: "Fit map", exact: true }).click();
   const original = await svg.getAttribute("viewBox");
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect(page.locator("#stadium-zoom-value")).toHaveText("150%");

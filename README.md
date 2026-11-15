@@ -41,17 +41,17 @@ Choose a start section and destination gate to inspect a reference-speed route i
 
 **Crowd behavior** now offers a synthetic adult mix with individual walking speed, response delay and body size, or a uniform 1.2 m/s comparison using identical starting seats. Open **Inspect & edit an individual** or click a spectator to see their profile. After the run starts and that person makes a choice, the inspector shows their chosen gate, committed route, free-flow estimate excluding queues, replacement reason, and actual evacuation time after exit. Before starting, edit age, gender label, height, weight, response delay, pace factor or an explicit speed override; those values are used when the person later chooses. Reset restores seeded profiles and clears route progress. Gender labels do not impose a speed multiplier; the demographic speed formula is an illustrative assumption.
 
-Movement now checks swept circular bodies on each surface and transfer channel. Junction reservations cover short connected segments, and following gaps remain large enough through turns. A faster person queues behind a slower one; a blocked landing retains the person in transit. This is conservative graph-constrained avoidance, with coarse seat access and no lateral overtaking or learned controller. See [individual behavior, collision algorithm and evidence](docs/AGENT_BEHAVIOR.md).
+Movement now uses a shared north-up physical model in meters. Deterministically assigned seats are spread across rows; a departing spectator moves along their row to the nearest side aisle and then to the section opening. Seated spectators remain beside the walking lane until they stand. Swept circular bodies, directional lanes on wide walks, junction reservations, transfer channels, and landing checks preserve clearance. A faster person queues behind a slower one; a blocked landing retains the person in transit. This remains conservative graph-constrained avoidance with no free lateral overtaking or learned controller. See [individual behavior, collision algorithm and evidence](docs/AGENT_BEHAVIOR.md).
 
 The stadium workspace defaults to a clearer destination-colored 2D overview and can switch to a linked architectural 3D view without pausing, resetting, or advancing a second simulation. A/B, C/D, E, and G/H retain the same colors across people, gates, routes, and counts. Select a person to highlight their remaining committed route, or a section to compare its distinct commitments. Waiting keeps the destination fill with an outline; rerouting and blocked states add separate markers. Detailed measurements, crowd configuration, and the reference-speed preview are collapsed by default.
 
-The 3D view now uses a visual-only projection to present a more recognizable, unbranded SHI Stadium-inspired environment while leaving the 2D map and all routing calculations unchanged. It includes a sloped lower bowl, separate sideline upper decks, field markings, concourse circulation, an exterior concrete-and-glass façade, entrance plazas, a south-end video board, light towers, and switchable daytime/stadium-light scenes. Spectators are small instanced destination-colored dots; waiting, rerouting, and blocked states retain their separate outlines and markers. Routes remain hidden until a person or section is selected. Actual walking and transfer progress drives every dot, including vertical ramp/stair descent and landing stops. Three.js still loads only on demand, and 2D remains functional if WebGL initialization fails. See the [3D assumptions and rendering benchmark](docs/STADIUM_3D_PERFORMANCE.md).
+The 2D and 3D views are now projections of that same simulation-owned geometry, rather than separate route drawings. Both are north-up and use the same physical seats, row access, paths, elevations, stairs, ramps, landings, and paired gate endpoints. The unbranded SHI Stadium-inspired 3D environment includes a raked lower bowl, separate sideline upper decks, field markings, concourse circulation, exterior façade and entrance plazas, a south-end video board, light towers, evacuation cutaway/full-architecture modes, and persistent day/stadium-light choices. Close spectators use instanced low-detail figures with seated and distance-driven walking poses; distant spectators automatically simplify to destination-colored dots. Waiting, rerouting, and blocked states retain separate outlines and markers. Selecting a spectator automatically frames them before a run and follows them afterward; selecting again, empty space, another feature, or evacuation returns to Overview. Routes remain hidden until a person or section is selected and show only the remaining commitment. Three.js still loads on demand, and 2D remains functional if WebGL initialization fails. See the [3D assumptions and rendering benchmark](docs/STADIUM_3D_PERFORMANCE.md).
 
 Geometry, scale, widths, profile distributions, speeds, and transfer settings remain experimental assumptions. The separate route preview uses the 1.2 m/s reference speed without queues. Personal route estimates use each spectator's preferred speed and adjusted transfer minimums, also without queues; actual evacuation time includes response delay, queues, closures, and rerouting. Queue observation, memory, and waiting-time forecasting are later steps. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources and map assumptions.
 
 ## Stack and architecture
 
-Vite, strict TypeScript, HTML/CSS, and Canvas 2D. There are no runtime packages, physics engines, runtime AI, or external pathfinding dependencies. TypeScript/tsx and Playwright are development tools only.
+Vite, strict TypeScript, HTML/CSS, SVG/Canvas 2D, and lazily loaded Three.js. There is no physics engine, runtime AI, or external pathfinding dependency. TypeScript/tsx and Playwright are development tools only.
 
 ```text
 src/
@@ -62,8 +62,10 @@ src/
   maps/largeMap.ts           Larger building with west/south exits
   maps/maps.ts               Layout catalog, spawn areas, and labels
   maps/stadium.ts            Schematic stadium surfaces, sections, gates, evidence
-  maps/stadiumNavigation.ts  Assumed corridors, explicit transfers, geometry validation
+  maps/stadiumNavigation.ts  North-up physical corridors, explicit transfers, geometry validation
   simulation/
+    StadiumPhysicalGeometry.ts Shared physical paths, elevations, seats, and distance sampling
+    StadiumSimulation.ts     Committed stadium routes, movement, transfer and render state
     Simulation.ts           Seeded spawn, fixed updates, prioritized route queue
     Agent.ts                Continuous agent state
     Grid.ts                 Immutable cell types plus separate density arrays
@@ -83,7 +85,8 @@ src/
   ui/
     Controls.ts             Input bindings and metric readouts
     PerformanceStats.ts     Browser render cadence measurement
-    StadiumViewer.ts        Interactive SVG stadium layers and feature inspection
+    StadiumViewer.ts        North-up SVG projection, linked 2D/3D controls and inspection
+    Stadium3DView.ts        Lazy Three.js architecture, crowd LOD and cameras
     StadiumRoutes.ts        Route overlay, transfer settings, connectivity status
   utils/                    Vector helpers and seeded PRNG
 tests/                      Unit tests, full-run scenarios, browser tests

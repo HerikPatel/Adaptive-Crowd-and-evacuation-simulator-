@@ -320,7 +320,7 @@ progress {
 .stadium-zoom output { font-size: 11px; min-width: 36px; text-align: center; color: #afc0cc; }
 .stadium-zoom [data-zoom="in"], .stadium-zoom [data-zoom="out"] { width: 40px; font-size: 18px; padding: 4px; }
 .stadium-layer-description { margin: 0; padding: 14px 18px 0; min-height: 50px; font-size: 12px; line-height: 1.6; }
-.stadium-svg { display: block; width: 100%; aspect-ratio: 1200 / 880; background: #101c2b; touch-action: none; user-select: none; cursor: grab; }
+.stadium-svg { display: block; width: 100%; aspect-ratio: 880 / 1200; background: #101c2b; touch-action: none; user-select: none; cursor: grab; }
 .stadium-svg:active { cursor: grabbing; }
 .stadium-view-stack { position: relative; min-height: 320px; }
 .stadium-3d { width: 100%; height: clamp(480px, 64vw, 780px); background: linear-gradient(#91b9da, #d7d1c1); }
@@ -332,6 +332,7 @@ progress {
 .stadium-lighting-controls { padding-left: 8px; border-left: 1px solid #405163; }
 .stadium-lighting-controls button[aria-pressed="true"] { color: #101923; background: #f2d28a; border-color: #f2d28a; }
 .stadium-lighting-controls button[data-lighting="night"][aria-pressed="true"] { color: #e8f2ff; background: #315b91; border-color: #80b5f8; }
+.stadium-cutaway-controls button[aria-pressed="true"] { color: #d7fff2; background: #24574f; border-color: #65d7c2; }
 .stadium-3d-controls output { margin-left: auto; color: #a9bbc8; font-size: 11px; font-variant-numeric: tabular-nums; }
 .stadium-blocked-warning { margin: 10px 18px; padding: 12px 14px; border: 1px solid #ff667b; border-radius: 6px; background: #4b202a; color: #ffd7dc; font-weight: 700; }
 .stadium-collapsible { border-bottom: 1px solid #263747; }
@@ -344,6 +345,10 @@ progress {
 .stadium-reference-area { fill: #172433; stroke: #405163; stroke-dasharray: 4 4; }
 .stadium-svg .stadium-caption { fill: #a7b8c5; font-size: 12px; }
 .stadium-svg .stadium-deck-name, .stadium-svg .stadium-side-name { fill: #94aabd; font-size: 12px; letter-spacing: 2px; }
+.stadium-physical-seat { fill: #ba4a54; stroke: #e0a1a7; stroke-width: 0.35; pointer-events: none; }
+.stadium-row-access { fill: none; stroke: #e8d7bc; stroke-width: 1.2; stroke-linecap: round; opacity: 0.72; pointer-events: none; }
+.stadium-row-access.is-row { stroke-width: 0.65; opacity: 0.45; }
+.stadium-row-access.is-aisle { stroke: #fff0c7; stroke-width: 2.2; opacity: 0.9; }
 .stadium-concourse { fill: none; stroke: #283b4b; stroke-width: 24; }
 .stadium-concourse-guide { fill: none; stroke: #708596; stroke-width: 1; stroke-dasharray: 5 6; }
 #stadium-concourse-ring.muted { opacity: 0.2; }
@@ -454,6 +459,8 @@ progress {
 #stadium-crowd-agents circle[data-selected="true"], #stadium-crowd-agents circle[data-section-selected="true"] { stroke: #fff; stroke-width: 1.4; filter: drop-shadow(0 0 3px #fff); }
 .stadium-profile-choice { grid-column: 1 / -1; }
 .stadium-profile-panel { border-top: 1px solid #263747; padding-top: 16px; margin-top: 16px; }
+.stadium-person-editor { border-top: 1px solid #334657; margin-top: 14px; padding-top: 10px; }
+.stadium-person-editor > summary { cursor: pointer; color: #c8d7e2; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
 .stadium-person-fields { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .stadium-person-fields > div { min-width: 0; }
 .stadium-person-fields button { align-self: end; font-size: 12px; }

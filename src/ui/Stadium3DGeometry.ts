@@ -1,76 +1,39 @@
-import { STADIUM, type Point, type SurfaceId } from "../maps/stadium";
+import type { Point } from "../maps/stadium";
+import { PHYSICAL_STADIUM_ASSUMPTIONS, PHYSICAL_STADIUM_BOUNDS, sourceToPhysical } from "../simulation/StadiumPhysicalGeometry";
 
-/**
- * Visual-only dimensions used by the SHI Stadium-inspired scene. The simulation
- * keeps using the original schematic map and distances; these values only bend
- * that map into a more recognizable stadium.
- */
+/** Architectural dimensions wrap the simulation-owned physical model. */
 export const STADIUM_3D_MODEL = Object.freeze({
-  mapScale: 0.05,
-  fieldLength: 30,
-  fieldWidth: 13.35,
-  lowerInnerRadius: 7.1,
-  lowerOuterRadius: 13.2,
-  concourseElevation: 3.2,
-  upperDeckElevation: 13.5,
+  fieldLength: 100,
+  fieldWidth: 48,
+  lowerInnerRadius: 27,
+  lowerOuterRadius: 50,
+  concourseElevation: PHYSICAL_STADIUM_ASSUMPTIONS.concourseElevation,
+  upperDeckElevation: PHYSICAL_STADIUM_ASSUMPTIONS.upperDeckMinElevation,
   exteriorElevation: 0.12,
-  plazaSize: 7.5,
+  plazaSize: 22,
 });
 
-export interface StadiumWorldPoint { x: number; y: number; z: number }
-
+/** Source-map features are centered into the shared physical coordinate system. */
 export function mapToGround(point: Point): { x: number; z: number } {
-  return {
-    x: (point.x - STADIUM.width / 2) * STADIUM_3D_MODEL.mapScale,
-    z: (point.y - STADIUM.height / 2) * STADIUM_3D_MODEL.mapScale,
-  };
+  const physical = sourceToPhysical(point);
+  return { x: physical.x - PHYSICAL_STADIUM_BOUNDS.centerX, z: physical.z - PHYSICAL_STADIUM_BOUNDS.centerZ };
 }
 
-/** Distance from the football field's capsule-like footprint. */
-export function bowlRadius(point: Point): number {
-  const { x, z } = mapToGround(point);
-  const halfStraight = STADIUM_3D_MODEL.fieldLength / 2 - STADIUM_3D_MODEL.fieldWidth / 2;
-  const endX = Math.max(0, Math.abs(x) - halfStraight);
-  return Math.hypot(endX, z);
-}
-
-export function lowerBowlElevation(point: Point): number {
-  const range = STADIUM_3D_MODEL.lowerOuterRadius - STADIUM_3D_MODEL.lowerInnerRadius;
-  const progress = Math.max(0, Math.min(1, (bowlRadius(point) - STADIUM_3D_MODEL.lowerInnerRadius) / range));
-  return 1.15 + progress * 7.2;
-}
-
-export function stadiumSurfacePoint(point: Point, surface: SurfaceId): StadiumWorldPoint {
-  const ground = mapToGround(point);
-  let y: number = STADIUM_3D_MODEL.exteriorElevation;
-  if (surface === "lower-bowl") y = lowerBowlElevation(point);
-  else if (surface === "upper-east" || surface === "upper-west") y = STADIUM_3D_MODEL.upperDeckElevation;
-  else if (surface === "concourse") y = STADIUM_3D_MODEL.concourseElevation;
-  return { ...ground, y };
-}
-
-/** A capsule loop aligned with the field's long axis. */
+/** Capsule aligned north/south with the physical football field. */
 export function capsulePoint(t: number, radius: number): { x: number; z: number } {
   const halfStraight = STADIUM_3D_MODEL.fieldLength / 2 - STADIUM_3D_MODEL.fieldWidth / 2;
   const straightLength = halfStraight * 2;
   const perimeter = straightLength * 2 + Math.PI * radius * 2;
   let distance = ((t % 1) + 1) % 1 * perimeter;
-  if (distance <= straightLength) return { x: -halfStraight + distance, z: -radius };
+  if (distance <= straightLength) return { x: -radius, z: -halfStraight + distance };
   distance -= straightLength;
   if (distance <= Math.PI * radius) {
-    const angle = -Math.PI / 2 + distance / radius;
-    return { x: halfStraight + radius * Math.cos(angle), z: radius * Math.sin(angle) };
+    const angle = Math.PI + distance / radius;
+    return { x: radius * Math.sin(angle), z: halfStraight - radius * Math.cos(angle) };
   }
   distance -= Math.PI * radius;
-  if (distance <= straightLength) return { x: halfStraight - distance, z: radius };
+  if (distance <= straightLength) return { x: radius, z: halfStraight - distance };
   distance -= straightLength;
-  const angle = Math.PI / 2 + distance / radius;
-  return { x: -halfStraight + radius * Math.cos(angle), z: radius * Math.sin(angle) };
-}
-
-export function surfaceElevation(surface: SurfaceId, point?: Point): number {
-  if (surface === "lower-bowl") return point ? lowerBowlElevation(point) : 6;
-  if (surface === "upper-east" || surface === "upper-west") return STADIUM_3D_MODEL.upperDeckElevation;
-  if (surface === "concourse") return STADIUM_3D_MODEL.concourseElevation;
-  return STADIUM_3D_MODEL.exteriorElevation;
+  const angle = distance / radius;
+  return { x: -radius * Math.cos(angle), z: -halfStraight - radius * Math.sin(angle) };
 }

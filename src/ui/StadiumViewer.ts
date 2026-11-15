@@ -5,6 +5,7 @@ import {
 import { StadiumRoutes, stadiumAssumptionsText } from "./StadiumRoutes";
 import { Stadium3DView, type StadiumLighting } from "./Stadium3DView";
 import { STADIUM_DESTINATIONS, type StadiumViewLevel, type StadiumViewMode } from "./StadiumVisuals";
+import { physicalToSvg, sourceToPhysical, STADIUM_PHYSICAL_SEATS } from "../simulation/StadiumPhysicalGeometry";
 
 const VIEW_LEVELS: { id: StadiumViewLevel; name: string; description: string }[] = [
   { id: "overview", name: "Overview", description: "All modeled surfaces and connections." },
@@ -23,7 +24,7 @@ export class StadiumViewer {
   private selected: StadiumFeature | undefined;
   private showConnections = true;
   private zoom = 1;
-  private view = { x: 0, y: 0, width: STADIUM.width as number, height: STADIUM.height as number };
+  private view = { x: 0, y: 0, width: STADIUM.height as number, height: STADIUM.width as number };
   private svg: SVGSVGElement;
   private picker: HTMLSelectElement;
   private routes: StadiumRoutes;
@@ -51,30 +52,27 @@ export class StadiumViewer {
             <details><summary>Route steps</summary><ol id="stadium-route-steps"></ol></details>
             <div class="stadium-connectivity-row"><strong id="stadium-connectivity" role="status"></strong><button type="button" id="stadium-reset-network">Reset route assumptions</button></div><p id="stadium-disconnected"></p>
           </section></details>
-        <div class="stadium-view-stack"><svg id="stadium-map" class="stadium-svg hide-section-labels" viewBox="0 0 ${STADIUM.width} ${STADIUM.height}" role="group" aria-labelledby="stadium-map-title" aria-describedby="stadium-map-description">
+        <div class="stadium-view-stack"><svg id="stadium-map" class="stadium-svg hide-section-labels" viewBox="0 0 ${STADIUM.height} ${STADIUM.width}" role="group" aria-labelledby="stadium-map-title" aria-describedby="stadium-map-description">
           <title id="stadium-map-title">SHI Stadium schematic</title>
-          <desc id="stadium-map-description">East is up, north is left. Approximate geometry, not to scale. Use the feature selector or click a section, gate or connection to inspect it.</desc>
+          <desc id="stadium-map-description">North is up. Shared physical geometry in meters is projected into this view. Use the feature selector or click a section, gate or connection to inspect it.</desc>
           <g aria-hidden="true" class="stadium-context">
-            <g class="stadium-compass" transform="translate(100 80)"><path d="M-30 0H30 M0-30V30"/><path d="M-30 0l8-5v10Z"/><text x="0" y="-41">E</text><text x="-44" y="5">N</text><text x="44" y="5">S</text><text x="0" y="50">W</text></g>
-            <g data-context="upper"><rect class="stadium-reference-area" x="350" y="32" width="500" height="28" rx="5"/><text class="stadium-caption" x="600" y="51">HALE CENTER · REFERENCE ONLY</text>
-              <rect class="stadium-reference-area" x="350" y="164" width="500" height="26" rx="4"/><text class="stadium-caption" x="600" y="182">CLUB 1–14 · REFERENCE ONLY</text>
-              <text class="stadium-deck-name" x="600" y="81">EAST UPPER DECK</text><text class="stadium-deck-name" x="600" y="703">WEST UPPER DECK</text></g>
-            <g id="stadium-concourse-ring"><path class="stadium-concourse" d="M350 205H850 A235 235 0 0 1 850 675H350 A235 235 0 0 1 350 205Z"/>
-              <path class="stadium-concourse-guide" d="M350 205H850 A235 235 0 0 1 850 675H350 A235 235 0 0 1 350 205Z"/></g>
-            <path class="stadium-bowl-outline" d="M350 280H850 A110 160 0 0 1 850 600H350 A110 160 0 0 1 350 280Z"/>
-            <rect class="stadium-field" x="350" y="320" width="500" height="240" rx="4"/>
-            <path class="stadium-field-lines" d="${Array.from({ length: 11 }, (_, i) => `M${350 + (i + 1) * 500 / 12} 330V550`).join(" ")}"/>
-            <text class="stadium-side-name" x="600" y="306">HOME / EAST</text><text class="stadium-side-name" x="600" y="584">VISITOR / WEST</text>
-            <rect class="stadium-field-caption" x="425" y="404" width="350" height="72" rx="8"/>
-            <text class="stadium-field-name" x="600" y="432">FOOTBALL FIELD</text><text class="stadium-caption" x="600" y="455">Reference only · no spectator route</text>
+            <g class="stadium-compass" transform="translate(80 95)"><path d="M-30 0H30 M0-30V30"/><path d="M0-30l-5 8h10Z"/><text x="0" y="-41">N</text><text x="44" y="5">E</text><text x="0" y="50">S</text><text x="-44" y="5">W</text></g>
+            <g data-context="upper"><text class="stadium-deck-name" x="760" y="600" transform="rotate(90 760 600)">EAST UPPER DECK</text><text class="stadium-deck-name" x="120" y="600" transform="rotate(-90 120 600)">WEST UPPER DECK</text></g>
+            <g id="stadium-concourse-ring"><rect class="stadium-concourse" x="205" y="205" width="470" height="790" rx="235"/><rect class="stadium-concourse-guide" x="205" y="205" width="470" height="790" rx="235"/></g>
+            <rect class="stadium-bowl-outline" x="280" y="280" width="320" height="640" rx="160"/>
+            <rect class="stadium-field" x="320" y="350" width="240" height="500" rx="4"/>
+            <path class="stadium-field-lines" d="${Array.from({ length: 11 }, (_, i) => `M330 ${350 + (i + 1) * 500 / 12}H550`).join(" ")}"/>
+            <text class="stadium-side-name" x="292" y="600" transform="rotate(-90 292 600)">WEST</text><text class="stadium-side-name" x="588" y="600" transform="rotate(90 588 600)">EAST</text>
+            <rect class="stadium-field-caption" x="354" y="564" width="172" height="72" rx="8"/>
+            <text class="stadium-field-name" x="440" y="592">FOOTBALL FIELD</text><text class="stadium-caption" x="440" y="615">No spectator route</text>
           </g>
           ${STADIUM_FEATURES.map(f => this.featureMarkup(f)).join("")}
-          <g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-committed-routes" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g><g id="stadium-state-markers" aria-hidden="true"></g>
+          <g id="stadium-seating-detail" aria-hidden="true"></g><g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-committed-routes" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g><g id="stadium-state-markers" aria-hidden="true"></g>
         </svg><div id="stadium-3d" class="stadium-3d" hidden><div id="stadium-3d-loading">Choose 3D to load the SHI Stadium-inspired scene.</div></div></div>
         <div id="stadium-3d-controls" class="stadium-3d-controls" hidden>
           <div role="group" aria-label="3D camera"><button type="button" data-camera="overview">Overview</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button><button type="button" data-camera="fit">Reset to fit</button></div>
           <div class="stadium-lighting-controls" role="group" aria-label="3D lighting"><button type="button" data-lighting="day" aria-pressed="true">Day</button><button type="button" data-lighting="night" aria-pressed="false">Stadium lights</button></div>
-          <button type="button" id="stadium-follow-person" disabled>Follow selected person</button><output id="stadium-3d-performance"></output></div>
+          <div class="stadium-cutaway-controls" role="group" aria-label="3D structure"><button type="button" data-cutaway="true" aria-pressed="true">Evacuation cutaway</button><button type="button" data-cutaway="false" aria-pressed="false">Full architecture</button></div><output id="stadium-3d-performance"></output></div>
         <div id="stadium-3d-error" class="error" role="alert"><span id="stadium-3d-error-text"></span><button type="button" id="stadium-return-2d" hidden>Return to 2D</button></div>
         <div class="stadium-legend stadium-destination-legend">${Object.entries(STADIUM_DESTINATIONS).map(([id, gate]) => `<span data-gate-legend="${id}"><i class="swatch" style="background:${gate.color}"></i>${gate.label}</span>`).join("")}
           <span><i class="swatch neutral"></i>Not assigned</span><span><i class="swatch waiting"></i>Waiting outline</span><span><i class="swatch rerouting"></i>Rerouting marker</span><span><i class="swatch blocked"></i>Blocked route</span></div>
@@ -112,6 +110,7 @@ export class StadiumViewer {
     this.svg.addEventListener("click", event => {
       const feature = (event.target as Element).closest<SVGGElement>("[data-feature]");
       if (feature) this.select(feature.dataset.feature);
+      else if (!(event.target as Element).closest("[data-person]")) this.clearPersonAndOverview();
     });
     this.svg.addEventListener("keydown", event => {
       const feature = (event.target as Element).closest<SVGGElement>("[data-feature]");
@@ -130,10 +129,10 @@ export class StadiumViewer {
     root.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach(button => button.addEventListener("click", () => {
       const action = button.dataset.zoom;
       const next = action === "fit" ? 1 : Math.max(1, Math.min(4, this.zoom * (action === "in" ? 1.5 : 1 / 1.5)));
-      const width = STADIUM.width / next, height = STADIUM.height / next;
+      const width = STADIUM.height / next, height = STADIUM.width / next;
       this.view = { x: this.view.x + (this.view.width - width) / 2, y: this.view.y + (this.view.height - height) / 2, width, height };
       this.zoom = next;
-      this.updateView();
+      this.updateView(); this.updateSeatingDetail();
     }));
     this.routes = new StadiumRoutes(root, this.svg, id => this.select(id), id => this.selectPerson(id));
     const personPanel = root.querySelector<HTMLDetailsElement>(".stadium-profile-panel")!;
@@ -152,10 +151,10 @@ export class StadiumViewer {
       root.querySelectorAll<HTMLElement>("[data-lighting]").forEach(control =>
         control.setAttribute("aria-pressed", String(control.dataset.lighting === lighting)));
     }));
-    root.querySelector("#stadium-follow-person")!.addEventListener("click", () => {
-      if (!this.threeD) return;
-      this.threeD.setFollowing(!this.threeD.isFollowing); this.updateFollowButton();
-    });
+    root.querySelectorAll<HTMLButtonElement>("[data-cutaway]").forEach(button => button.addEventListener("click", () => {
+      const value = button.dataset.cutaway === "true"; this.threeD?.setCutaway(value);
+      root.querySelectorAll<HTMLElement>("[data-cutaway]").forEach(control => control.setAttribute("aria-pressed", String((control.dataset.cutaway === "true") === value)));
+    }));
     root.querySelector("#stadium-return-2d")!.addEventListener("click", () => {
       this.root.querySelector("#stadium-3d-error-text")!.textContent = "";
       this.root.querySelector<HTMLElement>("#stadium-return-2d")!.hidden = true;
@@ -170,7 +169,11 @@ export class StadiumViewer {
     this.routes.update(delta, active);
     this.syncPersonPicker();
     if (active && this.viewMode === "3d" && this.threeD) {
-      const frame = this.routes.renderFrame(); this.threeD.render(frame); this.updateFollowButton(frame);
+      const frame = this.routes.renderFrame(), id = this.routes.selectedPersonId;
+      const person = id === null ? undefined : frame.people.find(candidate => candidate.id === id);
+      if (frame.hasStarted && person && person.movementState !== "evacuated" && !this.threeD.isFollowing)
+        this.threeD.focusPerson(person, true);
+      this.threeD.render(frame);
     }
   }
   pause() { this.routes.pause(); }
@@ -178,13 +181,15 @@ export class StadiumViewer {
   private featureMarkup(f: StadiumFeature): string {
     let shape: string;
     if (f.kind === "section") {
-      shape = `<polygon points="${f.polygon.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}"/><text class="stadium-section-label" x="${f.at.x}" y="${f.at.y + 5}">${f.label}</text>`;
+      const at = physicalToSvg(sourceToPhysical(f.at));
+      shape = `<polygon points="${f.polygon.map(p => { const point = physicalToSvg(sourceToPhysical(p)); return `${point.x.toFixed(2)},${point.y.toFixed(2)}`; }).join(" ")}"/><text class="stadium-section-label" x="${at.x}" y="${at.y + 5}">${f.label}</text>`;
     } else {
       const isGate = f.kind === "gate", halfWidth = isGate ? 47 : 19;
+      const at = physicalToSvg(sourceToPhysical(f.at));
       const line = f.kind === "connector"
-        ? `<path class="stadium-link" d="M${f.from.point.x} ${f.from.point.y} L${f.at.x} ${f.at.y} L${f.to.point.x} ${f.to.point.y}"/><circle class="stadium-endpoint" cx="${f.from.point.x}" cy="${f.from.point.y}" r="4"/><circle class="stadium-endpoint" cx="${f.to.point.x}" cy="${f.to.point.y}" r="4"/>`
-        : isGate ? `<path class="stadium-link" d="M${f.approach.x} ${f.approach.y} L${f.at.x} ${f.at.y}"/>` : "";
-      shape = `${line}<rect x="${f.at.x - halfWidth}" y="${f.at.y - 17}" width="${halfWidth * 2}" height="34" rx="6"/><text x="${f.at.x}" y="${f.at.y + 5}">${f.label}</text>${isGate ? `<text class="stadium-gate-side" x="${f.at.x}" y="${f.at.y - 27}">${f.side.toUpperCase()}</text>` : ""}`;
+        ? (() => { const from = physicalToSvg(sourceToPhysical(f.from.point)), to = physicalToSvg(sourceToPhysical(f.to.point)); return `<path class="stadium-link" d="M${from.x} ${from.y} L${at.x} ${at.y} L${to.x} ${to.y}"/><circle class="stadium-endpoint" cx="${from.x}" cy="${from.y}" r="4"/><circle class="stadium-endpoint" cx="${to.x}" cy="${to.y}" r="4"/>`; })()
+        : isGate ? (() => { const approach = physicalToSvg(sourceToPhysical(f.approach)); return `<path class="stadium-link" d="M${approach.x} ${approach.y} L${at.x} ${at.y}"/>`; })() : "";
+      shape = `${line}<rect x="${at.x - halfWidth}" y="${at.y - 17}" width="${halfWidth * 2}" height="34" rx="6"/><text x="${at.x}" y="${at.y + 5}">${f.label}</text>${isGate ? `<text class="stadium-gate-side" x="${at.x}" y="${at.y - 27}">${f.side.toUpperCase()}</text>` : ""}`;
     }
     const level = f.kind === "section" ? f.surfaceId === "lower-bowl" ? "lower" : "upper" : "";
     return `<g class="stadium-feature feature-${f.kind} ${level}" data-feature="${f.id}" role="button" tabindex="0" aria-label="${f.name}" aria-pressed="false"><title>${f.name}</title>${shape}</g>`;
@@ -219,6 +224,7 @@ export class StadiumViewer {
     if (personId === null) this.routes.selectSection(this.selected?.kind === "section" ? this.selected.id : null);
     this.threeD?.setLevel(this.level);
     this.threeD?.setSelection(personId, personId === null && this.selected?.kind === "section" ? this.selected.id : null);
+    this.updateSeatingDetail();
   }
 
   private select(id?: string) {
@@ -231,6 +237,7 @@ export class StadiumViewer {
     this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = true;
     this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = false;
     this.threeD?.setSelection(null, this.selected?.kind === "section" ? this.selected.id : null);
+    if (this.selected?.kind === "section") this.frameSection(this.selected);
     const f = this.selected;
     const details = this.root.querySelector("#stadium-feature-details")!;
     if (!f) {
@@ -249,6 +256,7 @@ export class StadiumViewer {
   }
 
   private selectPerson(id: number) {
+    if (this.routes.selectedPersonId === id) { this.clearPersonAndOverview(); return; }
     this.selected = undefined; this.picker.value = "";
     this.svg.querySelectorAll<SVGGElement>("[data-feature]").forEach(el => el.setAttribute("aria-pressed", "false"));
     this.routes.selectPerson(id);
@@ -256,7 +264,57 @@ export class StadiumViewer {
     this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = true;
     this.root.querySelector<HTMLElement>("#stadium-connection-controls")!.hidden = true;
     this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = false;
-    this.threeD?.setSelection(id, null); this.updateFollowButton();
+    this.threeD?.setSelection(id, null);
+    const person = this.routes.renderFrame().people.find(candidate => candidate.id === id);
+    if (person) this.threeD?.focusPerson(person, this.routes.renderFrame().hasStarted);
+  }
+
+  private clearPersonAndOverview() {
+    this.routes.clearPersonSelection();
+    this.root.querySelector<HTMLSelectElement>("#stadium-context-person-picker")!.value = "";
+    this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = false;
+    this.threeD?.setSelection(null, null); this.threeD?.setFollowing(false); this.threeD?.preset("overview");
+  }
+
+  private frameSection(section: Extract<StadiumFeature, { kind: "section" }>) {
+    if (this.viewMode === "3d") { this.threeD?.focusSection(section.id); return; }
+    const points = section.polygon.map(point => physicalToSvg(sourceToPhysical(point)));
+    const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
+    const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
+    const width = Math.max(120, (maxX - minX) * 3.2), height = width * STADIUM.width / STADIUM.height;
+    this.view = { x: (minX + maxX - width) / 2, y: (minY + maxY - height) / 2, width, height };
+    this.zoom = STADIUM.height / width; this.updateView(); this.updateSeatingDetail();
+  }
+
+  private updateSeatingDetail() {
+    const group = this.svg.querySelector("#stadium-seating-detail");
+    if (!group) return;
+    const selectedId = this.selected?.kind === "section" ? this.selected.id : null;
+    if (this.zoom < 1.8 && !selectedId) { group.replaceChildren(); return; }
+    const ids = selectedId ? [selectedId] : STADIUM.sections.filter(section => this.visible(section)).map(section => section.id);
+    group.innerHTML = ids.flatMap(id => {
+      const seats = STADIUM_PHYSICAL_SEATS.get(id) ?? [];
+      const seatDots = seats.map(seat => { const point = physicalToSvg(seat.position); return `<circle class="stadium-physical-seat" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="1.15"/>`; }).join("");
+      const rows = new Map<number, (typeof seats)[number][]>();
+      for (const seat of seats) rows.set(seat.row, [...(rows.get(seat.row) ?? []), seat]);
+      const rowPaths = [...rows.values()].map(row => {
+        const ordered = [...row].sort((a, b) => a.position.x - b.position.x || a.position.z - b.position.z);
+        const points = [ordered[0].position, ordered.at(-1)!.position].map(physicalToSvg);
+        return `<path class="stadium-row-access is-row" d="M${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)} L${points[1].x.toFixed(2)} ${points[1].y.toFixed(2)}"/>`;
+      }).join("");
+      const sidePaths = (["left", "right"] as const).map(side => {
+        const sideSeats = [...rows.values()].map(row => row.find(seat => seat.side === side)).filter((seat): seat is (typeof seats)[number] => Boolean(seat)).sort((a, b) => a.row - b.row);
+        if (!sideSeats.length) return "";
+        const aislePoints = sideSeats.map(seat => seat.accessPath.points[1]);
+        aislePoints.push(sideSeats.at(-1)!.accessPath.points.at(-1)!);
+        return `<path class="stadium-row-access is-aisle" d="${aislePoints.map((point, index) => { const projected = physicalToSvg(point); return `${index ? "L" : "M"}${projected.x.toFixed(2)} ${projected.y.toFixed(2)}`; }).join(" ")}"/>`;
+      }).join("");
+      const paths = `${rowPaths}${sidePaths}`;
+      const section = STADIUM.sections.find(candidate => candidate.id === id)!;
+      const clip = section.polygon.map(point => { const projected = physicalToSvg(sourceToPhysical(point)); return `${projected.x.toFixed(2)},${projected.y.toFixed(2)}`; }).join(" ");
+      return `<clipPath id="seating-clip-${id}"><polygon points="${clip}"/></clipPath><g data-seating-section="${id}" clip-path="url(#seating-clip-${id})">${paths}${seatDots}</g>`;
+    }).join("");
   }
 
   private mapLayer(level: StadiumViewLevel): StadiumLayer {
@@ -272,7 +330,7 @@ export class StadiumViewer {
       try {
         if (!this.threeD) {
           const container = this.root.querySelector<HTMLElement>("#stadium-3d")!;
-          this.threeD = new Stadium3DView(container, this.routes.getRouter(), id => this.selectPerson(id), () => this.updateFollowButton(),
+          this.threeD = new Stadium3DView(container, this.routes.getRouter(), id => this.selectPerson(id), () => this.clearPersonAndOverview(),
             this.root.querySelector<HTMLElement>("#stadium-3d-performance")!);
           await this.threeD.initialize(); this.threeD.setLevel(this.level);
           this.threeD.setSelection(this.routes.selectedPersonId, this.selected?.kind === "section" ? this.selected.id : null);
@@ -285,6 +343,14 @@ export class StadiumViewer {
         return;
       }
     }
+    if (mode === "3d" && this.threeD) {
+      this.threeD.setCutaway(true);
+      this.root.querySelectorAll<HTMLElement>("[data-cutaway]").forEach(control => control.setAttribute("aria-pressed", String(control.dataset.cutaway === "true")));
+      const id = this.routes.selectedPersonId, frame = this.routes.renderFrame();
+      const person = id === null ? undefined : frame.people.find(candidate => candidate.id === id);
+      if (person) this.threeD.focusPerson(person, frame.hasStarted);
+      else if (this.selected?.kind === "section") this.threeD.focusSection(this.selected.id);
+    } else if (mode === "2d" && this.threeD) this.threeD.preset("overview");
     this.viewMode = mode; this.routes.setViewMode(mode);
     this.svg.toggleAttribute("hidden", mode !== "2d");
     this.root.querySelector<HTMLElement>("#stadium-3d")!.hidden = mode !== "3d";
@@ -292,13 +358,6 @@ export class StadiumViewer {
     this.root.querySelector<HTMLElement>(".stadium-zoom")!.hidden = mode !== "2d";
     this.root.querySelectorAll<HTMLElement>("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === mode)));
     if (mode === "3d" && this.threeD) this.threeD.render(this.routes.renderFrame());
-  }
-
-  private updateFollowButton(frame = this.routes.renderFrame()) {
-    const button = this.root.querySelector<HTMLButtonElement>("#stadium-follow-person")!;
-    const id = this.routes.selectedPersonId, person = id === null ? undefined : frame.people.find(candidate => candidate.id === id);
-    button.disabled = !person || person.movementState === "evacuated";
-    button.textContent = this.threeD?.isFollowing ? "Stop following" : "Follow selected person";
   }
 
   private syncPersonPicker() {
@@ -310,8 +369,8 @@ export class StadiumViewer {
   }
 
   private updateView() {
-    this.view.x = Math.max(0, Math.min(STADIUM.width - this.view.width, this.view.x));
-    this.view.y = Math.max(0, Math.min(STADIUM.height - this.view.height, this.view.y));
+    this.view.x = Math.max(0, Math.min(STADIUM.height - this.view.width, this.view.x));
+    this.view.y = Math.max(0, Math.min(STADIUM.width - this.view.height, this.view.y));
     this.svg.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.width} ${this.view.height}`);
     this.root.querySelector("#stadium-zoom-value")!.textContent = `${Math.round(this.zoom * 100)}%`;
     this.root.querySelector<HTMLButtonElement>("[data-zoom=out]")!.disabled = this.zoom === 1;
