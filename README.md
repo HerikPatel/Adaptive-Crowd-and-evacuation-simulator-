@@ -24,7 +24,7 @@ npm run preview
 - The original **50×30 bottleneck** map remains available for Assignment 3 comparisons, with its shared start area and two east-facing exits. Changing layout resets the run and resizes the Canvas automatically.
 - **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected layout, population, and routing strategy. Positions are reproducible within each layout.
 - **Routing strategy:** Shortest Path or Congestion Aware. Changing strategy resets the run for comparison.
-- **Agent population:** 100 (default), 200, or 500. Changing population resets the run.
+- **Agent population:** enter a whole number from 1 to the layout's capacity, capped at 1,000. Applying a new population resets the run.
 - **Block Exit A / Re-open Exit A** works during a run or while paused. Closing A invalidates its paths immediately and prioritizes affected agents for rerouting. Reopening makes A a candidate at the next cooldown; it does not force a switch.
 - **Show paths / spatial hash / density values** provide optional debug overlays.
 - An animated heatmap shows local congestion below agents. Amber agents have recently changed exits. A blocked exit is red with an × marker.
@@ -41,9 +41,13 @@ Choose a start section and destination gate to inspect a route independently of 
 
 **Crowd behavior** now offers a synthetic adult mix with individual walking speed, response delay and body size, or a uniform 1.2 m/s comparison using identical starting seats. Open **Inspect & edit an individual** or click a spectator to see their profile. Before starting, edit age, gender label, height, weight, response delay, pace factor or an explicit speed override. Reset restores seeded profiles. Gender labels do not impose a speed multiplier; the demographic speed formula is an illustrative assumption.
 
-Movement now checks swept circular bodies on each surface and transfer channel. Junction reservations cover short connected segments, and following gaps remain large enough through turns. A faster person queues behind a slower one; a blocked landing retains the person in transit. This is conservative graph-constrained avoidance, with coarse seat access and no lateral overtaking or learned controller. See [individual behavior, collision algorithm and evidence](docs/AGENT_BEHAVIOR.md).
+Movement checks swept circular bodies on each surface and transfer channel. **Local movement** selects predictive passing on sufficiently wide, long corridors or the queue baseline. Faster walkers can move into an outside lane, pass, and merge before a junction; narrow aisles and transfers retain queues. Lateral motion uses the person's walking-speed budget, and opposing lanes are never borrowed. A blocked landing retains the person in transit. See [individual behavior, collision algorithm and evidence](docs/AGENT_BEHAVIOR.md).
 
-Geometry, scale, widths, profile distributions, speeds, and transfer settings remain experimental assumptions. Route-inspection times use the reference speed without queues; live times include individual speeds, response delays and waiting. Congestion-adaptive stadium routing is a later step. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources and map assumptions.
+**Stadium routing** offers a fixed free-flow baseline and adaptive travel-time potentials using live corridor occupancy and transfer queues. Adaptive routing samples traffic every 2 seconds and uses committed itineraries, a cooldown and an improvement threshold to reduce route switching. Closed routes trigger recovery at nodes. The route inspector remains a free-flow reference.
+
+**Stadium experiments**, below the map, compares routing modes, uniform/individual profiles, and open/east-gate-closure scenarios with identical seeds and starting seats. Choose populations, up to three seeds, and a run limit of 60–7,200 simulated seconds. Run a background batch, inspect charts, paired differences and variability across seeds, and download results/time-series/statistics CSVs. Incomplete runs remain explicit and never count as completed evacuation times. A headless equivalent is `npm run benchmark:stadium -- --populations=100,500,1000 --seeds=549`; add `--time-limit=3600` for longer runs and `--output=docs/benchmarks/my-comparison` to preserve previous measurements. See [algorithm, experimental protocol, metrics and limitations](docs/STADIUM_EXPERIMENTS.md).
+
+Geometry, scale, widths, profile distributions, speeds, and transfer settings remain experimental assumptions. Route-inspection times use the reference speed without queues; live times include individual speeds, response delays and waiting. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources and map assumptions.
 
 ## Stack and architecture
 
@@ -72,7 +76,9 @@ src/
     CongestionRouter.ts     Exit comparison, commitment, and hysteresis
     StadiumRouter.ts        Surface-aware Dijkstra, closures, connectivity inspection
   collision/
-    CollisionSystem.ts      Soft separation, wall avoidance, swept local checks
+    CollisionSystem.ts      Predictive steering, joint contact solver, sweep checks
+    PredictiveMotion.ts     Continuous relative-motion clearance
+    StadiumCorridor.ts      Corridor width and continuous passing lanes
   rendering/
     Renderer.ts             Map, exits, paths, agents, and debug overlays
     HeatmapRenderer.ts      Cached 10 Hz density layer
@@ -113,9 +119,11 @@ Density normalizes against 2.2 agents/m² and clamps to 0–1. At 10 Hz, both ro
 
 ### Collision and determinism
 
-Every fixed update rebuilds a 32 px spatial hash of active agents. Separation uses only nearby agents, with deterministic handling of coincident centers. Desired motion, separation, and wall repulsion combine into speed-capped velocity. Soft separation can slow an agent and reduce overlap; it does not guarantee zero overlap at high density.
+Every fixed update rebuilds a 32 px spatial hash of active agents. Desired motion, separation, and wall repulsion produce a preferred velocity. A deterministic velocity sampler anticipates the eight nearest neighbors, with a right-side preference for head-on encounters. Expensive predictions are staggered at 10 Hz and refreshed early when the desired heading changes. Agents that remain stopped increasingly favor resuming motion; hard clearance is enforced separately at every 60 Hz step.
 
-Circle-versus-wall checks resolve candidate movement with X/Y sliding. Substeps prevent tunneling, and local lookahead checks circle clearance at corners. Movement decisions use a shared snapshot before positions are committed. If closing A would intersect an approaching circle, that circle is moved minimally onto the adjacent floor before replanning.
+The joint contact solver projects nearby agents' proposed displacements together, so touching queues can advance without treating each follower as a stationary obstacle. Up to 48 deterministic passes enforce contact, speed and wall-normal constraints, including rounded doorway corners. An independent check of complete simultaneous relative-motion sweeps shortens unresolved motions by a shared fraction within each contact group before committing positions. The hard checks include every nearby body, not just the predictor's eight neighbors. This is a heuristic contact solver, not ORCA or a learned controller.
+
+Circle-versus-wall checks use X/Y sliding and small movement substeps; path lookahead checks body clearance at corners. Door closures prepare body-clear relocations atomically and reject the edit if an affected person cannot fit on adjacent floor. They never force overlapping placement.
 
 The fixed timestep is 1/60 s. Seeded initial positions, speed variation (0.9–1.1×), stable A* tie-breaking, and simulation-time cooldowns make identical fixed-step input sequences reproducible. Human clicks at different simulation times produce different runs. Frame deltas are capped at 100 ms to bound catch-up work; under sustained overload simulated time may lag real time. Five replans is a **fixed-update** budget: a catch-up render can include several updates. FPS is measured separately from the deterministic state.
 
@@ -137,7 +145,7 @@ npm test
 npm run test:browser
 ```
 
-Unit/scenario tests cover cardinal wall-free A*, reachable exits, blocked routes, congestion costs, hysteresis, spatial-hash boundaries, circle-wall tunneling, soft separation, full 100/200/500-agent evacuation, five-second closure, and exact reset/re-run determinism.
+Unit/scenario tests cover routing, hysteresis, spatial queries, simultaneous body sweeps, wall clearance, head-on encounters, touching queues, dense evacuation, live closures, deterministic reset, stadium passing/merging, and queue baselines. Large-map runs check body and wall clearance and speed budgets at every fixed step, including people exiting during that step.
 
 Browser tests use locally installed Chrome (`channel: 'chrome'` in `playwright.config.ts`) and start/reuse Vite on port 5174. Install Chrome or change the channel to an installed browser. Tests exercise controls, pause, dynamic closure, completion, pixel-identical reset, responsive layout, and record stress-run FPS samples. Screenshots and performance attachments go to `test-results/`.
 
@@ -151,13 +159,13 @@ Build and run `npm run preview`. Use a foreground browser tab at a fixed window 
 
 ## Known limitations
 
-- The original grid maps use soft local avoidance and can overlap temporarily in dense crowds. Stadium movement uses separate swept-body reservations; its remaining limitations are documented in the agent behavior notes.
+- Grid movement requires separated starting bodies and can conservatively stop when contact constraints cannot be resolved. Stadium passing requires sufficient assumed corridor width and room to merge. Neither solver guarantees completion for arbitrary edited layouts; see the agent behavior notes.
 - Simplified density, geometry, speeds, and crowd behavior are not validated for evacuation planning.
-- No anticipation of hazards, disabilities, panic, stairs, or one-way flows. Nearby density may include agents separated by an adjacent wall.
+- No validated modeling of hazards, disabilities or panic. The stadium has explicit stairs and directed transfers; original-grid density may include agents separated by an adjacent wall.
 - Local routes can still exhibit temporary crowd hesitation. Cooldowns/hysteresis reduce oscillation without mathematically guaranteeing none.
 - Render catch-up work and debug overlays affect performance; results must be measured on the target laptop.
-- The available floor plans and 500-agent maximum are fixed for the MVP.
+- Crowd size is capped at 1,000 and limited by available spawn space. The stadium is a schematic, not a full-attendance model.
 
 ## Future work
 
-Calibrated crowd models, improved anticipatory avoidance, larger-map routing experiments, and hardware profiling. A building editor, replay/scrubbing, CSV export, and a 2.5D view are intentionally deferred beyond Assignment 3.
+Calibrated crowd models, improved anticipatory avoidance, accessible egress, and presentation-laptop profiling remain future work. The building editor and stadium comparison/CSV tools are implemented; general layout import/export and full 3D rendering remain separate extensions. See the [current status and proposed remaining work](docs/ROADMAP.md) for concrete next tasks and completion checks.

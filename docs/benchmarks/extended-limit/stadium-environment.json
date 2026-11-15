@@ -1,0 +1,22 @@
+{
+  "version": "stadium-traffic-v1",
+  "startedAt": "2026-11-14T08:58:11.376Z",
+  "generatedAt": "2026-11-14T09:06:58.079Z",
+  "node": "v24.13.1",
+  "os": "win32 10.0.26200",
+  "cpu": "AMD Ryzen 7 8840HS w/ Radeon 780M Graphics     ",
+  "request": {
+    "populations": [
+      1000
+    ],
+    "seeds": [
+      549
+    ],
+    "timeLimitSeconds": 3600
+  },
+  "jobs": 8,
+  "completedJobs": 8,
+  "batchComplete": true,
+  "timestepSeconds": 0.03333333333333333,
+  "note": "Timings are elapsed simulation-update durations, include routing, exclude construction/rendering, and depend on host load/pauses. Statistics match seeds and use only fully completed pairs for completion-time comparisons. These are schematic model outputs, not measured evacuation times."
+}

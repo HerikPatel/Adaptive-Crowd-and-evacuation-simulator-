@@ -13,6 +13,7 @@ export class Agent {
   reroutingUntil = 0;
   evacuationTime: number | null = null;
   queued = false;
+  stalledSeconds = 0;
   constructor(
     public id: number,
     public position: Vector2,

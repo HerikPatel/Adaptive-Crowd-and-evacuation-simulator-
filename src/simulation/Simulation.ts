@@ -103,14 +103,18 @@ export class Simulation {
     if (blocked === this.grid.blockedExits.has(id)) return { ok: true, message: "" };
     const candidate = this.grid.cloneLayout();
     candidate.setExitBlocked(id, blocked);
+    const relocated = new Map<number, { x: number; y: number }>();
     if (blocked) {
       const issue = this.layoutConnectivityIssue(candidate);
       if (issue) return { ok: false, message: issue };
       for (const a of this.agents) {
         if (a.evacuated) continue;
-        const p = this.collision.resolveDoorClosure(a.position, a.radius, candidate);
-        if (this.collision.intersectsWall(p, a.radius, candidate))
+        if (!this.collision.intersectsWall(a.position, a.radius, candidate)) continue;
+        const fits = (p: { x: number; y: number }) => this.agents.every(b => b === a || b.evacuated || distance(p, relocated.get(b.id) ?? b.position) >= a.radius + b.radius + 0.02);
+        const p = this.collision.resolveDoorClosure(a.position, a.radius, candidate, fits);
+        if (this.collision.intersectsWall(p, a.radius, candidate) || !fits(p))
           return { ok: false, message: "An agent is in this doorway. Try again after it moves." };
+        relocated.set(a.id, p);
       }
     }
     this.grid.setExitBlocked(id, blocked);
@@ -120,12 +124,7 @@ export class Simulation {
         if (a.evacuated) continue;
         // Closing a door may touch a circle whose center has not yet evacuated.
         // Move it the minimum distance back onto the approach before replanning.
-        if (this.collision.intersectsWall(a.position, a.radius, this.grid))
-          a.position = this.collision.resolveDoorClosure(
-            a.position,
-            a.radius,
-            this.grid,
-          );
+        if (relocated.has(a.id)) a.position = relocated.get(a.id)!;
         if (a.targetExit === id || a.path.slice(a.pathIndex).some((p) => this.grid.exitAt(p.x, p.y) === id)) {
           a.path = [];
           a.pathIndex = 0;
@@ -215,15 +214,12 @@ export class Simulation {
       if (a.evacuated) continue;
       // Visible local lookahead prevents crowds from fighting for one exact cell
       // center. Circle-swept visibility preserves corner/wall clearance.
-      while (a.pathIndex < a.path.length - 1) {
-        const current = this.grid.center(a.path[a.pathIndex]),
-          next = this.grid.center(a.path[a.pathIndex + 1]);
-        if (
-          distance(a.position, current) < this.grid.cellSize &&
-          this.collision.canTravel(a.position, next, a.radius, this.grid)
-        )
-          a.pathIndex++;
-        else break;
+      // A lateral avoidance maneuver must not force a return to an already bypassed
+      // corner center. Follow the furthest visible nearby point on the committed path.
+      const startIndex = a.pathIndex;
+      for (let i = startIndex + 1; i < Math.min(a.path.length, startIndex + 7); i++) {
+        const next = this.grid.center(a.path[i]);
+        if (distance(a.position, next) <= 3 * this.grid.cellSize && this.collision.canTravel(a.position, next, a.radius, this.grid)) a.pathIndex = i;
       }
       const node = a.path[a.pathIndex];
       if (!node) continue;
@@ -232,19 +228,22 @@ export class Simulation {
         a.pathIndex++;
         continue;
       }
-      a.velocity = this.collision.velocity(
+      const velocity = this.collision.velocity(
         a,
         this.collision.direction(a, goal),
         this.hash,
         this.grid,
+        Math.round(this.time / CONFIG.fixedDt),
       );
       movements.push({
         agent: a,
-        position: this.collision.move(a, a.velocity, dt, this.grid),
+        position: this.collision.move(a, velocity, dt, this.grid),
       });
     }
     // Compute from a shared snapshot before committing positions (no stale hash buckets).
-    for (const { agent: a, position } of movements) {
+    for (const { agent: a, position } of this.collision.reserveMovements(movements, this.agents, this.hash, this.grid, dt, Math.round(this.time / CONFIG.fixedDt))) {
+      a.velocity = { x: (position.x - a.position.x) / dt, y: (position.y - a.position.y) / dt };
+      a.stalledSeconds = Math.hypot(a.velocity.x, a.velocity.y) < 0.1 * a.speed ? a.stalledSeconds + dt : 0;
       a.position = position;
       const cell = this.grid.cell(a.position),
         exit = this.grid.exitAt(cell.x, cell.y);

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Simulation } from "../src/simulation/Simulation";
 import { MAPS } from "../src/maps/maps";
 import { findPath } from "../src/pathfinding/AStar";
+import { updateWithClearance } from "./helpers/gridClearance";
 
 test("large map has distributed, wall-free spawns and separated reachable exits", () => {
   const s = new Simulation(500, "large");
@@ -53,7 +54,7 @@ for (const [count, blocked] of [
     s.running = true;
     for (let step = 0; step < 180 * 60 && s.running; step++) {
       if (blocked && step === 8 * 60) s.setExitABlocked(true);
-      s.update(1 / 60);
+      updateWithClearance(s);
       if (step % 60 === 0)
         for (const a of s.agents)
           if (!a.evacuated)

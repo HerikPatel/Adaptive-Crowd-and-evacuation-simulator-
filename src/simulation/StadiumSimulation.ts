@@ -1,9 +1,12 @@
 import { STADIUM, STADIUM_SURFACES, type Point, type SurfaceId } from "../maps/stadium";
 import { drawingLength, STADIUM_ASSUMPTIONS } from "../maps/stadiumNavigation";
-import { StadiumRouter, type StadiumRoute, type StadiumRouteStep } from "../pathfinding/StadiumRouter";
+import { StadiumRouter, type StadiumRouteStep, type StadiumRoutingMode } from "../pathfinding/StadiumRouter";
+import { StadiumTrafficRouter } from "../pathfinding/StadiumTrafficRouter";
 import { seededRandom } from "../utils/math";
 import { bodyRadius, createProfile, validateProfile, walkingSpeed, type CrowdProfile, type PersonProfile } from "./PersonProfile";
 import { DiscReservations } from "../collision/DiscReservations";
+import { corridorsConflict } from "../collision/StadiumJunctions";
+import { StadiumCorridor } from "../collision/StadiumCorridor";
 
 export const STADIUM_STEP = 1 / 30;
 const SCALE = STADIUM_ASSUMPTIONS.metersPerUnit;
@@ -13,7 +16,7 @@ const EPS = 1e-8;
 type Stationary = { kind: "seated"; nodeId: string } | { kind: "node"; nodeId: string };
 type Approach = { kind: "approaching"; nodeId: string; distance: number; length: number };
 export type StadiumTravel = ({ kind: "walking" } | { kind: "transfer" }) & { step: StadiumRouteStep;
-  distance: number; duration: number; enteredAt: number };
+  distance: number; duration: number; enteredAt: number; lateral?: number };
 export type SpectatorState = Stationary | Approach | StadiumTravel |
   { kind: "evacuated"; gateId: string; at: number };
 export interface StadiumSpectator {
@@ -25,7 +28,8 @@ export interface StadiumSpectator {
   stranded: boolean;
   waiting: boolean;
 }
-export interface StadiumRunOptions { count: number; sections?: string[]; seed?: number; profileMode?: CrowdProfile }
+export type StadiumMovement = "queue" | "passing";
+export interface StadiumRunOptions { count: number; sections?: string[]; seed?: number; profileMode?: CrowdProfile; routingMode?: StadiumRoutingMode; movementMode?: StadiumMovement }
 export interface StadiumEvent { personId: number; edgeId: string; kind: "enter" | "leave" | "evacuate"; time: number }
 
 function inside(p: Point, polygon: Point[]): boolean {
@@ -67,14 +71,23 @@ export class StadiumSimulation {
   private regionPoints = new Map<string, Point[]>();
   private releaseOrder: StadiumSpectator[] = [];
   collisionWaits = 0;
+  waitingPersonSeconds = 0;
+  peakWaiting = 0;
+  navigation!: StadiumTrafficRouter;
   private owners = new Map<string, number>();
   private lastAdmission = new Map<string, number>();
-  private routeCache = new Map<string, StadiumRoute | null>();
   private revision = -1;
   private lengths: Map<string, number>;
+  private corridors: Map<string, StadiumCorridor>;
+  private passes = new Map<number, { otherId: number; returning: boolean; passed: boolean }>();
+  private passOwners = new Map<string, number>();
+  completedPasses = 0;
+  passAttempts = 0;
+  get movementMode() { return this.options.movementMode ?? "passing"; }
 
   constructor(readonly router = new StadiumRouter(), options: StadiumRunOptions = { count: 100 }) {
     this.lengths = new Map(router.network.edges.map(e => [e.id, drawingLength(e.points) * SCALE]));
+    this.corridors = new Map(router.network.edges.filter(e => !e.transfer && e.direction === "both").map(e => [e.id, new StadiumCorridor(e)]));
     // A short edge is part of one junction reservation, not a place to squeeze two bodies.
     for (const n of router.network.nodes) this.regions.set(n.id, n.id);
     const find = (id: string): string => {
@@ -85,6 +98,14 @@ export class StadiumSimulation {
     for (const edge of router.network.edges)
       if (!edge.transfer && edge.kind !== "gate" && this.lengths.get(edge.id)! < 2 * HEADWAY)
         this.regions.set(find(edge.to), find(edge.from));
+    // Schematic stair approaches cross nearby section aisles. A body on one can block
+    // a node owner on the other forever unless both passages share one reservation.
+    const walks = router.network.edges.filter(e => !e.transfer && e.kind !== "gate");
+    for (let i = 0; i < walks.length; i++) for (let j = i + 1; j < walks.length; j++) {
+      const a = walks[i], b = walks[j];
+      if (router.nodes.get(a.from)!.surfaceId !== router.nodes.get(b.from)!.surfaceId || !corridorsConflict(a, b)) continue;
+      for (const id of [a.to, b.from, b.to]) this.regions.set(find(id), find(a.from));
+    }
     for (const n of router.network.nodes) this.regions.set(n.id, find(n.id));
     for (const n of router.network.nodes) {
       const id = this.regions.get(n.id)!, points = this.regionPoints.get(id) ?? [];
@@ -123,6 +144,10 @@ export class StadiumSimulation {
     if (!Number.isInteger(options.seed ?? 549)) throw new Error("Seed must be an integer.");
     const profileMode = options.profileMode ?? "mixed";
     if (profileMode !== "mixed" && profileMode !== "uniform") throw new Error("Choose a valid crowd profile.");
+    const routingMode = options.routingMode ?? "free-flow";
+    if (routingMode !== "free-flow" && routingMode !== "adaptive") throw new Error("Choose a valid routing strategy.");
+    const movementMode = options.movementMode ?? "passing";
+    if (movementMode !== "passing" && movementMode !== "queue") throw new Error("Choose a valid local movement mode.");
     const random = seededRandom(options.seed ?? 549);
     const available = new Map(sections.map(id => {
       const points = [...this.slots.get(id)!];
@@ -141,10 +166,12 @@ export class StadiumSimulation {
         state: { kind: "seated", nodeId: this.router.network.sectionNodes[sectionId] }, stranded: false, waiting: true });
     }
     // Validation and preparation happen before changing a live run.
-    this.options = { count: options.count, sections, seed: options.seed ?? 549, profileMode };
+    this.options = { count: options.count, sections, seed: options.seed ?? 549, profileMode, routingMode, movementMode };
     this.spectators = people; this.time = 0; this.running = false; this.events = [];
-    this.owners.clear(); this.lastAdmission.clear(); this.routeCache.clear(); this.revision = -1;
-    this.collisionWaits = 0;
+    this.owners.clear(); this.lastAdmission.clear(); this.revision = -1;
+    this.collisionWaits = 0; this.waitingPersonSeconds = 0; this.peakWaiting = 0;
+    this.passes.clear(); this.passOwners.clear(); this.completedPasses = 0; this.passAttempts = 0;
+    this.navigation = new StadiumTrafficRouter(this.router, routingMode);
     this.releaseOrder = [...people].sort((a, b) => {
       const distance = (p: StadiumSpectator) => {
         const node = this.router.nodes.get(this.router.network.sectionNodes[p.sectionId])!.point;
@@ -166,7 +193,7 @@ export class StadiumSimulation {
     validateProfile(profile);
     const p = this.spectators.find(person => person.id === id);
     if (!p) throw new Error("Unknown spectator.");
-    p.profile = { ...profile }; this.rebuildBodies();
+    p.profile = { ...profile }; this.rebuildBodies(); this.navigation.invalidatePerson(id);
   }
 
   private zone(p: StadiumSpectator) {
@@ -178,7 +205,7 @@ export class StadiumSimulation {
     else this.bodies.set(p.id, this.zone(p), this.meters(this.position(p)), bodyRadius(p.profile));
   }
   private rebuildBodies() { this.bodies.clear(); for (const p of this.spectators) this.reserveBody(p); }
-  private moveWithClearance(p: StadiumSpectator, target: number): number {
+  private moveWithClearance(p: StadiumSpectator, target: number, budget = Infinity): number {
     const s = p.state;
     if (s.kind !== "walking" && s.kind !== "transfer" && s.kind !== "approaching") return 0;
     const original = s.distance;
@@ -188,24 +215,22 @@ export class StadiumSimulation {
       s.distance = allowed; const from = this.meters(this.position(p));
       const next = Math.min(target, allowed + 0.08);
       s.distance = next; const to = this.meters(this.position(p));
-      const fraction = this.bodies.fraction(p.id, this.zone(p), from, to, bodyRadius(p.profile));
+      const travel = Math.hypot(to.x - from.x, to.y - from.y);
+      const fraction = Math.min(travel ? budget / travel : 1, this.bodies.fraction(p.id, this.zone(p), from, to, bodyRadius(p.profile)), 1);
       allowed += (next - allowed) * fraction;
-      if (fraction < 1) { this.collisionWaits++; break; }
+      budget = Math.max(0, budget - travel * fraction);
+      if (fraction < 1 || budget < EPS) { if (budget >= EPS) this.collisionWaits++; break; }
     }
     s.distance = original; return allowed;
   }
 
   refreshRoutes() {
+    this.navigation.sample(this.spectators, this.time);
     if (this.revision === this.router.revision) return;
-    this.revision = this.router.revision; this.routeCache.clear();
+    this.revision = this.router.revision;
     for (const p of this.spectators) {
-      p.stranded = (p.state.kind === "node" || p.state.kind === "seated") && !this.route(p.state.nodeId);
+      p.stranded = (p.state.kind === "node" || p.state.kind === "seated") && !this.navigation.choose(p, p.state.nodeId, this.time);
     }
-  }
-
-  private route(nodeId: string) {
-    if (!this.routeCache.has(nodeId)) this.routeCache.set(nodeId, this.router.routeFromNode(nodeId));
-    return this.routeCache.get(nodeId)!;
   }
   private claim(nodeId: string, personId: number): boolean {
     nodeId = this.regions.get(nodeId)!;
@@ -225,6 +250,53 @@ export class StadiumSimulation {
   }
   private gap(edgeId: string) { return this.router.edges.get(edgeId)!.transfer ? 1.6 : HEADWAY; }
 
+  private passingCorridor(p: StadiumSpectator): StadiumCorridor | undefined {
+    const s = p.state;
+    if (this.movementMode !== "passing" || s.kind !== "walking" || this.sameRegion(s.step.from, s.step.to)) return;
+    const corridor = this.corridors.get(s.step.edgeId);
+    return corridor?.supportsPassing(bodyRadius(p.profile)) ? corridor : undefined;
+  }
+
+  /** Shift toward a reserved outside lane before catching a slower walker. No borrowing
+   * of opposing lanes, passing on transfers, or lateral shortcuts through junctions.
+   * Returns the physical distance already spent on the lateral part of this step.
+   */
+  private changeLane(p: StadiumSpectator, neighbors: StadiumSpectator[], dt: number): number {
+    const corridor = this.passingCorridor(p);
+    if (!corridor) return 0;
+    const s = p.state as StadiumTravel, speed = walkingSpeed(p.profile), key = `${s.step.edgeId}:${s.step.from}`;
+    let pass = this.passes.get(p.id);
+    if (!pass && !this.passOwners.has(key) && s.distance >= 2 * HEADWAY) {
+      const leader = neighbors.filter(other => other !== p && other.state.kind === "walking" && other.state.step.from === s.step.from &&
+        other.state.distance > s.distance && (other.state.lateral ?? 0) < 0.1).sort((a, b) => (a.state as StadiumTravel).distance - (b.state as StadiumTravel).distance)[0];
+      if (leader) {
+        const gap = (leader.state as StadiumTravel).distance - s.distance, advantage = speed - walkingSpeed(leader.profile);
+        const maneuverSeconds = (gap + HEADWAY) / Math.max(0.01, advantage) + 2 * 0.8 / Math.min(0.65, speed / 2);
+        if (advantage >= 0.15 && gap <= 3.5 && corridor.length - s.distance > speed * maneuverSeconds + 2 * HEADWAY) {
+          pass = { otherId: leader.id, returning: false, passed: false };
+          this.passes.set(p.id, pass); this.passOwners.set(key, p.id); this.passAttempts++;
+        }
+      }
+    }
+    if (!pass) return 0;
+    const other = this.spectators[pass.otherId];
+    const otherHere = other.state.kind === "walking" && other.state.step.edgeId === s.step.edgeId && other.state.step.from === s.step.from;
+    if (otherHere && s.distance >= (other.state as StadiumTravel).distance + HEADWAY) { pass.passed = true; pass.returning = true; }
+    if (!otherHere || corridor.length - s.distance < 4 * HEADWAY) pass.returning = true;
+    const before = this.meters(this.position(p)), old = s.lateral ?? 0, goal = pass.returning ? 0 : 0.8;
+    const step = Math.sign(goal - old) * Math.min(Math.abs(goal - old), Math.min(0.65, speed / 2) * dt);
+    s.lateral = old + step;
+    const after = this.meters(this.position(p));
+    s.lateral = old + step * this.bodies.fraction(p.id, this.zone(p), before, after, bodyRadius(p.profile));
+    const at = this.meters(this.position(p));
+    this.reserveBody(p);
+    if (pass.returning && s.lateral < EPS) {
+      s.lateral = 0; this.passes.delete(p.id); this.passOwners.delete(key);
+      if (pass.passed) this.completedPasses++;
+    }
+    return Math.hypot(at.x - before.x, at.y - before.y);
+  }
+
   /** Called with a fixed timestep by the UI, including during accelerated playback. */
   update(dt: number) {
     if (!Number.isFinite(dt) || dt <= 0 || dt > 0.1) throw new Error("Use a positive timestep of at most 0.1 seconds.");
@@ -234,19 +306,26 @@ export class StadiumSimulation {
 
     // Move leaders before followers, with separate directed lanes on wide walking edges.
     const travelers = this.spectators.filter(p => p.state.kind === "walking" || p.state.kind === "transfer");
+    const byEdge = new Map<string, StadiumSpectator[]>();
+    for (const p of travelers) { const id = (p.state as StadiumTravel).step.edgeId, group = byEdge.get(id) ?? []; group.push(p); byEdge.set(id, group); }
     travelers.sort((a, b) => (b.state as StadiumTravel).distance - (a.state as StadiumTravel).distance || a.id - b.id);
     const fronts = new Map<string, number>();
     for (const p of travelers) {
       const s = p.state as StadiumTravel, edge = this.router.edges.get(s.step.edgeId)!;
       const length = this.lengths.get(edge.id)!, gap = this.gap(edge.id);
-      const key = `${edge.id}:${s.step.from}`;
       const speed = s.kind === "transfer" ? length / s.duration : walkingSpeed(p.profile);
-      let target = Math.min(length, s.distance + speed * dt, (fronts.get(key) ?? Infinity) - gap);
+      const lateralTravel = this.changeLane(p, byEdge.get(edge.id)!, dt);
+      const key = `${edge.id}:${s.step.from}:${(s.lateral ?? 0) >= 0.7 ? 1 : 0}`;
+      const budget = Math.max(0, speed * dt - lateralTravel);
+      let target = Math.min(length, s.distance + budget, (fronts.get(key) ?? Infinity) - gap);
+      // Finish merging before requesting the destination junction. The base lane can
+      // continue past a yielding outside-lane walker, avoiding a circular reservation.
+      if ((s.lateral ?? 0) > EPS) target = Math.min(target, length - 2 * HEADWAY);
       // Only the leading arrival enters the node's clearance area. Other lanes wait upstream.
       if (target >= length - gap - EPS && !this.claim(s.step.to, p.id)) target = Math.min(target, Math.max(0, length - gap));
       target = Math.max(s.distance, target);
-      target = this.moveWithClearance(p, target);
-      p.waiting = target <= s.distance + EPS;
+      target = this.moveWithClearance(p, target, this.movementMode === "passing" && s.kind === "walking" ? budget : Infinity);
+      p.waiting = target <= s.distance + EPS && lateralTravel < EPS;
       s.distance = target;
       if (!this.sameRegion(s.step.from, s.step.to) && this.clearedRegion(s.step.from, p)) this.release(s.step.from, p.id);
       if (s.distance >= length - EPS && this.claim(s.step.to, p.id) &&
@@ -281,7 +360,7 @@ export class StadiumSimulation {
     for (const p of this.releaseOrder) {
       const s = p.state;
       if (s.kind !== "node" && s.kind !== "seated") continue;
-      const route = this.route(s.nodeId);
+      const route = this.navigation.choose(p, s.nodeId, this.time);
       p.stranded = !route;
       if (!route) continue;
       if (s.kind === "seated") {
@@ -309,6 +388,7 @@ export class StadiumSimulation {
       const travel: StadiumTravel = { kind: transfer ? "transfer" : "walking", step,
         distance: 0, duration: transfer ? transfer.travelSeconds * Math.max(1, 1.2 / walkingSpeed(p.profile)) : 0, enteredAt: this.time };
       p.state = travel; p.waiting = false;
+      this.navigation.depart(p.id, step);
       occupants.push(travel); occupancy.set(edge.id, occupants);
       this.reserveBody(p);
       if (transfer) {
@@ -316,6 +396,8 @@ export class StadiumSimulation {
         this.events.push({ personId: p.id, edgeId: edge.id, kind: "enter", time: this.time });
       }
     }
+    const waiting = this.spectators.filter(p => p.state.kind !== "evacuated" && !p.stranded && p.waiting && this.time >= p.profile.reactionSeconds).length;
+    this.waitingPersonSeconds += waiting * dt; this.peakWaiting = Math.max(this.peakWaiting, waiting);
     if (this.complete || this.blocked) this.pause();
   }
 
@@ -336,6 +418,12 @@ export class StadiumSimulation {
       return { x: p.seat.x + (to.x - p.seat.x) * t, y: p.seat.y + (to.y - p.seat.y) * t };
     }
     const edge = this.router.edges.get(s.step.edgeId)!, length = this.lengths.get(edge.id)!;
+    const corridor = this.passingCorridor(p);
+    if (corridor) {
+      const offset = Math.min(1, s.distance / HEADWAY, (length - s.distance) / HEADWAY) * (0.4 + (s.lateral ?? 0));
+      const point = corridor.point(s.distance, s.step.from !== edge.from, offset);
+      return { x: point.x / SCALE, y: point.y / SCALE };
+    }
     const points = s.step.from === edge.from ? edge.points : [...edge.points].reverse();
     let remaining = s.distance / SCALE;
     for (let i = 1; i < points.length; i++) {
@@ -367,13 +455,16 @@ export class StadiumSimulation {
         if (p.stranded) stranded++;
         else if (p.waiting) waiting++;
         if (s.kind === "node") {
-          const next = this.route(s.nodeId)?.steps[0];
+          const next = this.navigation.peek(p.id)?.steps[0];
           if (next && transfers[next.edgeId]) transfers[next.edgeId].waiting++;
         }
       }
     }
     const speeds = this.spectators.map(p => walkingSpeed(p.profile));
     return { population: this.spectators.length, time: this.time, evacuated, inTransfer, waiting, stranded,
+      routingMode: this.navigation.mode, movementMode: this.movementMode, completedPasses: this.completedPasses, passAttempts: this.passAttempts, routeSwitches: this.navigation.switches, forcedReroutes: this.navigation.forcedReroutes,
+      routingSearches: this.navigation.searches, trafficSnapshots: this.navigation.snapshots,
+      meanWaitingSeconds: this.waitingPersonSeconds / this.spectators.length, peakWaiting: this.peakWaiting,
       collisionWaits: this.collisionWaits, minSpeed: Math.min(...speeds), maxSpeed: Math.max(...speeds), meanSpeed: speeds.reduce((a, b) => a + b, 0) / speeds.length,
       onSurface: this.spectators.length - evacuated - inTransfer, surfaces, exits, transfers,
       averageEvacuationSeconds: evacuated ? totalEvacuationSeconds / evacuated : null };

@@ -1,6 +1,6 @@
 import { STADIUM, STADIUM_SURFACES, type StadiumLayer } from "../maps/stadium";
-import { StadiumRouter } from "../pathfinding/StadiumRouter";
-import { StadiumSimulation, STADIUM_STEP, type StadiumRunOptions } from "../simulation/StadiumSimulation";
+import { StadiumRouter, type StadiumRoutingMode } from "../pathfinding/StadiumRouter";
+import { StadiumSimulation, STADIUM_STEP, type StadiumRunOptions, type StadiumMovement } from "../simulation/StadiumSimulation";
 import { bodyRadius, walkingSpeed, PROFILE_SOURCE, type CrowdProfile, type Gender } from "../simulation/PersonProfile";
 
 /** Presentation only: switching layers never changes the simulation's surface membership. */
@@ -16,6 +16,8 @@ export class StadiumCrowd {
   private origin: HTMLSelectElement;
   private speed: HTMLSelectElement;
   private profileMode: HTMLSelectElement;
+  private routingMode: HTMLSelectElement;
+  private movementMode: HTMLSelectElement;
   private personPicker: HTMLSelectElement;
 
   constructor(private root: HTMLElement, private svg: SVGSVGElement, private router: StadiumRouter) {
@@ -26,6 +28,8 @@ export class StadiumCrowd {
         <div><label for="stadium-origin">Starting seats</label><select id="stadium-origin"><option value="all">All seating levels</option><option value="lower-bowl">Lower bowl</option><option value="upper-east">East upper deck</option><option value="upper-west">West upper deck</option><option value="mixed">Sections 101 + 217</option></select></div>
         <div><label for="stadium-speed">Playback speed</label><select id="stadium-speed"><option value="1">1×</option><option value="4">4×</option><option value="8">8×</option></select></div>
         <div class="stadium-profile-choice"><label for="stadium-profile-mode">Crowd behavior</label><select id="stadium-profile-mode"><option value="mixed">Individual profiles · synthetic adult mix</option><option value="uniform">Uniform comparison · 1.2 m/s</option></select></div>
+        <div class="stadium-profile-choice"><label for="stadium-routing-mode">Stadium routing</label><select id="stadium-routing-mode"><option value="adaptive">Adaptive · congestion + expected wait</option><option value="free-flow">Free-flow baseline · fixed travel times</option></select></div>
+        <div class="stadium-profile-choice"><label for="stadium-movement-mode">Local movement</label><select id="stadium-movement-mode"><option value="passing">Predictive passing · wide corridors</option><option value="queue">Queue baseline · no overtaking</option></select></div>
         <div class="stadium-run-actions"><button type="submit" id="stadium-run-start" class="primary">Start stadium run</button><button type="button" id="stadium-run-pause" disabled>Pause</button><button type="button" id="stadium-run-reset">Reset crowd</button></div>
       </form><p id="stadium-population-help" class="field-help"></p><p id="stadium-run-error" class="error" role="alert"></p>
       <div class="stadium-run-progress"><strong id="stadium-run-status" role="status">Ready</strong><span>Simulation time <output id="stadium-run-time">0.0 s</output></span><label for="stadium-run-progress">Outside <output id="stadium-run-count">0 / 100</output></label><progress id="stadium-run-progress" max="100" value="0"></progress></div>`;
@@ -33,6 +37,8 @@ export class StadiumCrowd {
       <h3>Live stadium counts</h3><p class="field-help">Counts include every level, even when hidden. In-transit people belong to a connector until they reach its landing.</p>
       <div id="stadium-level-counts" class="stadium-counts"></div>
       <p id="stadium-speed-summary" class="field-help"></p>
+      <p id="stadium-routing-summary" class="field-help"></p>
+      <p id="stadium-movement-summary" class="field-help"></p>
       <div class="stadium-run-totals"><span>Waiting <strong id="stadium-waiting">0</strong></span><span>Without a route <strong id="stadium-stranded">0</strong></span><span>Mean exit time <strong id="stadium-mean-time">—</strong></span></div>
       <details><summary>Transfer occupancy & gate use</summary><p class="field-help">Entry waiting counts the person at each transfer entrance; longer upstream queues are included in total waiting. Transfer travel times are minimums: slower walkers and a busy landing can delay arrival.</p><div id="stadium-transfer-counts"></div><div id="stadium-gate-counts" class="stadium-counts"></div></details>
       <details class="stadium-profile-panel"><summary>Inspect & edit an individual</summary>
@@ -57,6 +63,8 @@ export class StadiumCrowd {
     this.origin = root.querySelector("#stadium-origin")!;
     this.speed = root.querySelector("#stadium-speed")!;
     this.profileMode = root.querySelector("#stadium-profile-mode")!;
+    this.routingMode = root.querySelector("#stadium-routing-mode")!;
+    this.movementMode = root.querySelector("#stadium-movement-mode")!;
     this.personPicker = root.querySelector("#stadium-person-picker")!;
     this.personPicker.addEventListener("change", () => { this.showProfile(); this.render(); });
     svg.addEventListener("click", event => {
@@ -81,7 +89,7 @@ export class StadiumCrowd {
       } catch (error) { root.querySelector("#stadium-person-message")!.textContent = (error as Error).message; }
     });
     this.settingsKey = JSON.stringify(this.readOptions());
-    for (const field of [this.origin, this.population, this.profileMode]) field.addEventListener("change", () => {
+    for (const field of [this.origin, this.population, this.profileMode, this.routingMode, this.movementMode]) field.addEventListener("change", () => {
       this.updateLimit(); this.tryAction(() => this.reset(this.readOptions()));
     });
     root.querySelector("#stadium-run-form")!.addEventListener("submit", event => {
@@ -97,7 +105,7 @@ export class StadiumCrowd {
     this.speed.addEventListener("change", () => { this.accumulator = 0; });
     // Pause synchronously on navigation, including rapid back/forward visits between animation frames.
     root.querySelector("[data-menu]")!.addEventListener("click", () => this.pause());
-    this.makeCircles(); this.updateLimit(); this.render();
+    this.simulation.reset(this.readOptions()); this.makeCircles(); this.updateLimit(); this.render();
   }
 
   private readOptions(): StadiumRunOptions {
@@ -105,7 +113,7 @@ export class StadiumCrowd {
     const sections = origin === "all" ? STADIUM.sections.map(s => s.id)
       : origin === "mixed" ? ["section-101", "section-217"]
       : STADIUM.sections.filter(s => s.surfaceId === origin).map(s => s.id);
-    return { count: Number(this.population.value), sections, seed: 549, profileMode: this.profileMode.value as CrowdProfile };
+    return { count: Number(this.population.value), sections, seed: 549, profileMode: this.profileMode.value as CrowdProfile, routingMode: this.routingMode.value as StadiumRoutingMode, movementMode: this.movementMode.value as StadiumMovement };
   }
   private updateLimit() {
     const limit = this.simulation.capacity(this.readOptions().sections);
@@ -174,7 +182,9 @@ export class StadiumCrowd {
       circle.dataset.state = p.stranded ? "stranded" : state.kind === "transfer" ? "transfer" : p.waiting ? "waiting" : "moving";
       circle.dataset.surface = surface ?? "in-transit";
     }
-    this.population.disabled = this.origin.disabled = this.profileMode.disabled = s.running;
+    this.population.disabled = this.origin.disabled = this.profileMode.disabled = this.routingMode.disabled = this.movementMode.disabled = s.running;
+    this.root.querySelector("#stadium-movement-summary")!.textContent = `${m.movementMode === "passing" ? "Predictive passing on wide corridors" : "Queue baseline: no overtaking"}. Completed passes: ${m.completedPasses}; attempts: ${m.passAttempts}. Passing needs room to merge before the next junction. Narrow aisles and transfers stay in queues; opposing lanes are never borrowed.`;
+    this.root.querySelector("#stadium-routing-summary")!.textContent = `${m.routingMode === "adaptive" ? "Adaptive routing · traffic sampled every 2 s" : "Free-flow baseline · reference speed 1.2 m/s"}. Route changes: ${m.routeSwitches} voluntary, ${m.forcedReroutes} after network edits. Mean stopped wait after response: ${m.meanWaitingSeconds.toFixed(1)} s/person. Adaptive changes require ≥15% and ≥3 s improvement, an 8 s cooldown, and no revisiting previous nodes.`;
     this.root.querySelector<HTMLFieldSetElement>("#stadium-person-fields")!.disabled = s.running || s.time > 0;
     const person = s.spectators[Number(this.personPicker.value)];
     this.root.querySelector("#stadium-person-status")!.textContent = `Spectator ${person.id + 1} · ${person.stranded ? "without a route" : person.state.kind} · preferred ${walkingSpeed(person.profile).toFixed(2)} m/s · body diameter ${(bodyRadius(person.profile) * 2).toFixed(2)} m · response ${person.profile.reactionSeconds.toFixed(1)} s`;

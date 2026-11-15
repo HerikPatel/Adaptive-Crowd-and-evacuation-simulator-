@@ -1,0 +1,29 @@
+Project progress and remaining tasks (updated November 15, 2026)
+
+1. Movement quality - COMPLETED
+   - Grid predictive steering, joint contact resolution, and hard body/wall sweep checks.
+   - Dense doorway corner handling, cooperative queues, and atomic safe door closures.
+   - Stadium passing in eligible wide corridors, merging, and a selectable queue baseline.
+   - Movement modes recorded in experiments and CSV/statistics; regression coverage verified.
+   - See docs/VALIDATION.md for test results, completion times, and local performance samples.
+
+2. Finish the editor
+   - Save and load custom layouts and experiment settings using a validated, versioned format.
+   - Add spawn-area editing and redo.
+   - Add more presets such as an office, classroom corridor, and auditorium.
+
+3. Improve realism
+   - Validate stadium dimensions, corridor/gate widths, and transfer capacities against permitted plans or observations.
+   - Support agent distributions and walking-speed assumptions with evidence.
+   - Document remaining assumptions and run sensitivity comparisons.
+   - Run matched-seed queue/passing benchmarks for stadium-movement-v2.
+     Existing stadium-traffic-v1 benchmark CSVs are historical and do not measure passing.
+
+4. Prepare delivery
+   - Profile the production build on the presentation laptop, including dense stadium runs.
+   - Finalize the demo, report, and up to four slides on navigation and collision detection.
+   - Check the GitHub-linked Vercel deployment after the code push.
+   - Verify deployed experiment workers and CSV downloads.
+
+Optional extensions: full 3D, stress/panic, group behavior, accessible egress, and learned policies.
+Next implementation priority: finish the editor (priority 2).

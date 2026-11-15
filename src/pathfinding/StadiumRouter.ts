@@ -3,6 +3,9 @@ import { STADIUM_ASSUMPTIONS, createStadiumNetwork, drawingLength, validateStadi
   type NavigationEdge, type StadiumNetwork, type TransferParameters } from "../maps/stadiumNavigation";
 
 export interface StadiumRouteStep { edgeId: string; from: string; to: string }
+export type StadiumRoutingMode = "free-flow" | "adaptive";
+export interface StadiumRouteCosts { speed?: number; delays?: ReadonlyMap<string, number> }
+export const routeStepKey = (step: StadiumRouteStep) => `${step.edgeId}:${step.from}`;
 export interface StadiumRoute {
   sectionId: string;
   gateId: string;
@@ -10,6 +13,7 @@ export interface StadiumRoute {
   assumedWalkMeters: number;
   transferSeconds: number;
   freeFlowSeconds: number;
+  estimatedSeconds: number;
 }
 
 /** Surface-aware routes shared by inspection and the crowd simulation. */
@@ -68,9 +72,50 @@ export class StadiumRouter {
     this.closed.clear(); this.overrides.clear(); this.revision++;
   }
 
-  edgeSeconds(edge: NavigationEdge): number {
+  edgeSeconds(edge: NavigationEdge, speed = STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond as number): number {
     const transfer = this.parameters(edge.id);
-    return transfer ? transfer.travelSeconds : drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit / STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond;
+    return transfer ? transfer.travelSeconds * Math.max(1, 1.2 / speed) : drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit / speed;
+  }
+
+  stepSeconds(step: StadiumRouteStep, costs: StadiumRouteCosts = {}): number {
+    return this.isClosed(step.edgeId) ? Infinity : this.edgeSeconds(this.edges.get(step.edgeId)!, costs.speed) + Math.max(0, costs.delays?.get(routeStepKey(step)) ?? 0);
+  }
+
+  routeSeconds(steps: StadiumRouteStep[], costs: StadiumRouteCosts = {}): number {
+    return steps.reduce((sum, step) => sum + this.stepSeconds(step, costs), 0);
+  }
+
+  /** Reverse shortest-time potential shared by everyone in a speed band for one traffic snapshot. */
+  potential(costs: StadiumRouteCosts = {}): Map<string, StadiumRouteStep> {
+    const next = new Map<string, StadiumRouteStep>(), distance = new Map<string, number>();
+    const queue = new PriorityQueue<{ id: string; cost: number }>();
+    for (const id of Object.values(this.network.gateNodes)) { distance.set(id, 0); queue.push({ id, cost: 0 }, 0); }
+    while (queue.size) {
+      const current = queue.pop()!;
+      if (current.cost !== distance.get(current.id)) continue;
+      for (const step of this.incoming.get(current.id) ?? []) {
+        const cost = current.cost + this.stepSeconds(step, costs);
+        if (cost >= (distance.get(step.from) ?? Infinity)) continue;
+        distance.set(step.from, cost); next.set(step.from, step);
+        queue.push({ id: step.from, cost }, cost);
+      }
+    }
+    return next;
+  }
+
+  routeFromPotential(start: string, next: ReadonlyMap<string, StadiumRouteStep>, costs: StadiumRouteCosts): StadiumRoute | null {
+    const steps: StadiumRouteStep[] = [], seen = new Set<string>();
+    let at = start;
+    while (next.has(at)) {
+      if (seen.has(at)) throw new Error("Cyclic route potential");
+      seen.add(at); const step = next.get(at)!; steps.push(step); at = step.to;
+    }
+    const gateId = Object.keys(this.network.gateNodes).find(id => this.network.gateNodes[id] === at);
+    if (!gateId) return null;
+    return { sectionId: start, gateId, steps,
+      assumedWalkMeters: steps.reduce((sum, step) => sum + (this.edges.get(step.edgeId)!.transfer ? 0 : drawingLength(this.edges.get(step.edgeId)!.points) * STADIUM_ASSUMPTIONS.metersPerUnit), 0),
+      transferSeconds: steps.reduce((sum, step) => sum + (this.edges.get(step.edgeId)!.transfer ? this.edgeSeconds(this.edges.get(step.edgeId)!, costs.speed) : 0), 0),
+      freeFlowSeconds: this.routeSeconds(steps, { speed: costs.speed }), estimatedSeconds: this.routeSeconds(steps, costs) };
   }
 
   /** Dijkstra: explicit positive transfer costs; drawing intersections never create neighbors. */
@@ -116,7 +161,7 @@ export class StadiumRouter {
       else assumedWalkMeters += drawingLength(edge.points) * STADIUM_ASSUMPTIONS.metersPerUnit;
     }
     return { sectionId: start, gateId: Object.keys(this.network.gateNodes).find(id => this.network.gateNodes[id] === end)!,
-      steps, assumedWalkMeters, transferSeconds, freeFlowSeconds: costs.get(end)! };
+      steps, assumedWalkMeters, transferSeconds, freeFlowSeconds: costs.get(end)!, estimatedSeconds: costs.get(end)! };
   }
 
   /** Reverse reachability checks every section against all currently open exterior gates. */

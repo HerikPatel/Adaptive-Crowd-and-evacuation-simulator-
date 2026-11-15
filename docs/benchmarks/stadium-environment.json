@@ -1,0 +1,21 @@
+{
+  "version": "stadium-traffic-v1",
+  "generatedAt": "2026-11-14T08:48:07.910Z",
+  "node": "v24.13.1",
+  "os": "win32 10.0.26200",
+  "cpu": "AMD Ryzen 7 8840HS w/ Radeon 780M Graphics     ",
+  "jobs": 24,
+  "timestepSeconds": 0.03333333333333333,
+  "note": "Compute timings include simulation updates and routing, exclude construction/rendering, and depend on host load. These are schematic model outputs, not measured evacuation times.",
+  "timingRemeasurement": {
+    "job": {
+      "population": 1000,
+      "seed": 549,
+      "profile": "mixed",
+      "routing": "free-flow",
+      "scenario": "east-closure"
+    },
+    "recordedAt": "2026-11-14T08:51:07.031Z",
+    "reason": "The initial run was interrupted while the host/session was idle; its maximum update interval exceeded 14 hours. Repeated only this case and replaced its compute timings after verifying every non-timing summary field and every time-series sample matched exactly."
+  }
+}
