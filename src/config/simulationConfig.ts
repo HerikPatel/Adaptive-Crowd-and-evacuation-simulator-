@@ -22,5 +22,7 @@ export const CONFIG = {
   maxPopulation: 1000,
 } as const;
 export type RoutingMode = "shortest" | "congestion";
+export type MovementMode = "predictive" | "orca";
+export const MOVEMENT_LABELS: Record<MovementMode, string> = { predictive: "Predictive steering", orca: "ORCA" };
 export const EXIT_IDS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
 export type ExitId = (typeof EXIT_IDS)[number];

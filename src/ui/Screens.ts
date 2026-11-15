@@ -1,4 +1,4 @@
-import type { RoutingMode } from "../config/simulationConfig";
+import { MOVEMENT_LABELS, type RoutingMode, type MovementMode } from "../config/simulationConfig";
 import { Experiment, type Scenario, type Screen } from "../simulation/Experiment";
 import { MAPS, type MapChoiceId } from "../maps/maps";
 
@@ -16,9 +16,10 @@ export class Screens {
       }
       const count = Number(document.querySelector<HTMLInputElement>("#setup-population")!.value);
       const mode = document.querySelector<HTMLSelectElement>("#setup-routing")!.value as RoutingMode;
+      const movement = document.querySelector<HTMLSelectElement>("#setup-movement")!.value as MovementMode;
       const scenario = document.querySelector<HTMLSelectElement>("#setup-scenario")!.value as Scenario;
       try {
-        experiment.begin(count, mode, scenario, mapId, (event as SubmitEvent).submitter?.id !== "edit-before-start");
+        experiment.begin(count, mode, scenario, mapId, (event as SubmitEvent).submitter?.id !== "edit-before-start", movement);
         document.querySelector("#setup-error")!.textContent = "";
         this.update();
       } catch (error) {
@@ -67,6 +68,7 @@ export class Screens {
         document.querySelector<HTMLSelectElement>("#setup-map")!.value = s.mapId;
         document.querySelector<HTMLInputElement>("#setup-population")!.value = String(s.agentCount);
         document.querySelector<HTMLSelectElement>("#setup-routing")!.value = s.mode;
+        document.querySelector<HTMLSelectElement>("#setup-movement")!.value = s.movementMode;
         document.querySelector<HTMLSelectElement>("#setup-scenario")!.value = e.scenario;
       }
       this.updateSetup();
@@ -74,6 +76,7 @@ export class Screens {
       document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
       document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
       document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
+      document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
     } else if (e.screen === "results") {
       const m = s.metrics;
       const seconds = (value: number | null) => value === null ? "Unused" : `${value.toFixed(2)} s`;
@@ -81,7 +84,7 @@ export class Screens {
         ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? "Exit A closed at 5 s" : "Finished before scheduled closure"
         : "All exits initially open";
       document.querySelector("#result-context")!.textContent =
-        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${s.mode === "congestion" ? "Congestion Aware" : "Shortest Path"} · ${scenario}`;
+        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${s.mode === "congestion" ? "Congestion Aware" : "Shortest Path"} · ${MOVEMENT_LABELS[s.movementMode]} · ${scenario}`;
       const results: Record<string, string> = {
         evacuated: `${m.evacuatedCount} / ${s.agentCount}`, total: seconds(m.totalEvacuationTime),
         average: seconds(m.averageEvacuationTime), peak: `${m.peakDensity.toFixed(2)} agents/m²`,

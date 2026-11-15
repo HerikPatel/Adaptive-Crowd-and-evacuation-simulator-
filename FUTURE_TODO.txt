@@ -1,10 +1,12 @@
-Project progress and remaining tasks (updated November 15, 2026)
+Project progress and remaining tasks (updated November 16, 2026)
 
 1. Movement quality - COMPLETED
    - Grid predictive steering, joint contact resolution, and hard body/wall sweep checks.
    - Dense doorway corner handling, cooperative queues, and atomic safe door closures.
    - Stadium passing in eligible wide corridors, merging, and a selectable queue baseline.
    - Movement modes recorded in experiments and CSV/statistics; regression coverage verified.
+   - Optional ORCA local movement for both building maps, with matched resets and labeled results.
+     Stadium ORCA remains future work; its queue/passing model is separate.
    - See docs/VALIDATION.md for test results, completion times, and local performance samples.
 
 2. Finish the editor
@@ -18,6 +20,9 @@ Project progress and remaining tasks (updated November 15, 2026)
    - Document remaining assumptions and run sensitivity comparisons.
    - Run matched-seed queue/passing benchmarks for stadium-movement-v2.
      Existing stadium-traffic-v1 benchmark CSVs are historical and do not measure passing.
+   - Compare building ORCA against predictive steering across layouts, closures and seeds.
+     Current dense-map ORCA cases finish more slowly; tune only with repeatable evidence.
+   - Investigate ORCA on stadium concourses while retaining explicit transfer/landing queues.
 
 4. Prepare delivery
    - Profile the production build on the presentation laptop, including dense stadium runs.

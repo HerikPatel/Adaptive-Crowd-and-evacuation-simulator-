@@ -5,7 +5,7 @@ test("adaptive controls and background comparisons produce charts and downloadab
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/"); await page.locator("#setup-map").selectOption("stadium");
   await page.getByRole("button", { name: "Open stadium", exact: true }).click();
-  const movement = page.getByLabel("Local movement", { exact: true });
+  const movement = page.locator("#stadium-screen").getByLabel("Local movement", { exact: true });
   await expect(movement).toHaveValue("passing");
   await movement.selectOption("queue");
   await expect(page.locator("#stadium-movement-summary")).toContainText("Queue baseline: no overtaking");

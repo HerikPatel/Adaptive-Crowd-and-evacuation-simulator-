@@ -1,6 +1,6 @@
 # Stadium individual behavior and collision handling
 
-Implemented for the stadium surface graph. The original building-grid experiments keep their existing movement model.
+Individual profiles are implemented for the stadium surface graph. Building maps offer predictive steering and optional ORCA with their existing seeded speed variation; see [the building comparison](ORCA.md).
 
 The navigation layer now offers [adaptive graph routing and reproducible comparisons](STADIUM_EXPERIMENTS.md). Both routing modes share the movement and collision rules below.
 
@@ -67,13 +67,15 @@ The controlled regression demonstrates passing with oncoming traffic and a live 
 
 ## Building-grid contact handling
 
-Grid maps combine predictive velocity sampling with a joint displacement solver and independent simultaneous sweep checks. The predictor looks 0.65 s ahead at up to eight nearest neighbors. Forecasts are staggered over six fixed steps (10 Hz), with early refresh on a substantial desired-heading change or changed preferred speed. The solver checks all pairs within possible contact range on every 60 Hz step, projects equal shares of normal contact corrections, caps each person's travel, and reapplies wall-normal constraints for up to 48 passes. Rounded-corner normals let a person yield sideways when another walker enters a doorway. A 0.5 px target clearance margin absorbs convergence error; the final check uses actual body radii.
+Grid maps combine selectable predictive or ORCA velocities with a joint displacement solver and independent simultaneous sweep checks. The default predictor looks 0.65 s ahead at up to eight nearest neighbors. Forecasts are staggered over six fixed steps (10 Hz), with early refresh on a substantial desired-heading change or changed preferred speed. Optional ORCA solves reciprocal velocity constraints at 60 Hz with up to 16 neighbors and separate grid-wall supporting planes. The common contact solver checks all pairs within possible contact range on every 60 Hz step, projects equal shares of normal contact corrections, caps each person's travel, and reapplies wall-normal constraints for up to 48 passes. Rounded-corner normals let a person yield sideways when another walker enters a doorway. A 0.5 px target clearance margin absorbs convergence error; the final check uses actual body radii.
 
 If an unresolved pair would overlap, a binary search finds a safe prefix of its two simultaneous motions. All potentially contacting agents are grouped, and the smallest required fraction scales the entire group. This preserves coordinated movement and every earlier sweep check; independently stopping one walker could invalidate a neighbor's motion. Separate groups cannot reach one another within the step's speed bounds. A group can still stop when no safe progress is available.
 
+ORCA first tests the whole proposal against all reachable body pairs, walls and speed limits. A clear step is accepted directly, without iterating toward the contact solver's extra spacing margin. Any failed check enters the same joint correction and safe-prefix fallback. The predictive baseline retains its earlier correction behavior for reproducible comparison.
+
 Resolving movement jointly allows a touching queue to advance together. Growing preference for motion after a stall prevents the predictor from selecting indefinite rest under crowded conditions. Contact corrections can move people sideways or backward within their speed budget; acceleration is not modeled. The solver remains a deterministic heuristic and can hesitate or conservatively stop on untested geometry. It requires valid, separated spawns; layout edits and door closures preserve that precondition.
 
-[Van den Berg et al., ORCA](https://gamma-web.iacs.umd.edu/ORCA/) is a relevant future comparison: it shares avoidance responsibility between agents and solves local velocity constraints. Implementing it faithfully would require a suitable continuous navigation region and obstacle model. The current reservation filter keeps the existing graph route constraints and should not be described as ORCA, reinforcement learning, or an AI pathfinder.
+[Van den Berg et al., ORCA](https://gamma-web.iacs.umd.edu/ORCA/) now supplies an optional building-map comparison; [implementation notes](ORCA.md) distinguish its pairwise constraints from project-specific wall and contact handling. Stadium ORCA integration remains future work. The stadium reservation filter keeps graph route constraints and is not ORCA or a learned controller.
 
 ## Validation
 

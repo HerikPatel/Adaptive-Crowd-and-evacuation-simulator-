@@ -22,8 +22,9 @@ npm run preview
 
 - **Building layout:** the default **Distributed wings** map is 70×42 cells (1400×840 simulation pixels), with agents spread across four wings linked by a ring and central passages. Exit A faces west, while Exit B faces south. A has a narrow bottleneck and B has a wide approach; the cheaper route depends on an agent's location and congestion.
 - The original **50×30 bottleneck** map remains available for Assignment 3 comparisons, with its shared start area and two east-facing exits. Changing layout resets the run and resizes the Canvas automatically.
-- **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected layout, population, and routing strategy. Positions are reproducible within each layout.
+- **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected layout, population, routing strategy and local movement mode. Positions are reproducible within each layout.
 - **Routing strategy:** Shortest Path or Congestion Aware. Changing strategy resets the run for comparison.
+- **Local movement:** Predictive steering (default) or ORCA for both building maps. Changing movement resets the crowd for a matched comparison; results label the mode. Both share the same routing and final collision checks. See the [ORCA implementation and limitations](docs/ORCA.md).
 - **Agent population:** enter a whole number from 1 to the layout's capacity, capped at 1,000. Applying a new population resets the run.
 - **Block Exit A / Re-open Exit A** works during a run or while paused. Closing A invalidates its paths immediately and prioritizes affected agents for rerouting. Reopening makes A a candidate at the next cooldown; it does not force a switch.
 - **Show paths / spatial hash / density values** provide optional debug overlays.
@@ -77,6 +78,7 @@ src/
     StadiumRouter.ts        Surface-aware Dijkstra, closures, connectivity inspection
   collision/
     CollisionSystem.ts      Predictive steering, joint contact solver, sweep checks
+    OrcaSolver.ts           Optional reciprocal velocity constraints and linear programs
     PredictiveMotion.ts     Continuous relative-motion clearance
     StadiumCorridor.ts      Corridor width and continuous passing lanes
   rendering/
@@ -119,9 +121,11 @@ Density normalizes against 2.2 agents/m² and clamps to 0–1. At 10 Hz, both ro
 
 ### Collision and determinism
 
-Every fixed update rebuilds a 32 px spatial hash of active agents. Desired motion, separation, and wall repulsion produce a preferred velocity. A deterministic velocity sampler anticipates the eight nearest neighbors, with a right-side preference for head-on encounters. Expensive predictions are staggered at 10 Hz and refreshed early when the desired heading changes. Agents that remain stopped increasingly favor resuming motion; hard clearance is enforced separately at every 60 Hz step.
+Every fixed update rebuilds a 32 px spatial hash of active agents. In the default predictive mode, desired motion, separation, and wall repulsion produce a preferred velocity. A deterministic velocity sampler anticipates the eight nearest neighbors, with a right-side preference for head-on encounters. Expensive predictions are staggered at 10 Hz and refreshed early when the desired heading changes. Agents that remain stopped increasingly favor resuming motion; hard clearance is enforced separately at every 60 Hz step.
 
-The joint contact solver projects nearby agents' proposed displacements together, so touching queues can advance without treating each follower as a stationary obstacle. Up to 48 deterministic passes enforce contact, speed and wall-normal constraints, including rounded doorway corners. An independent check of complete simultaneous relative-motion sweeps shortens unresolved motions by a shared fraction within each contact group before committing positions. The hard checks include every nearby body, not just the predictor's eight neighbors. This is a heuristic contact solver, not ORCA or a learned controller.
+Optional ORCA computes reciprocal agent-agent constraints and solves for a preferred velocity within each person's speed limit at 60 Hz. It uses up to 16 neighbors, a 0.8-second agent horizon, and conservative grid-wall supporting planes over 0.2 seconds. Both modes produce proposals from a shared snapshot before the same independent contact stage. See [ORCA details and third-party attribution](docs/ORCA.md).
+
+The joint contact solver projects nearby agents' proposed displacements together, so touching queues can advance without treating each follower as a stationary obstacle. Up to 48 deterministic passes enforce contact, speed and wall-normal constraints, including rounded doorway corners. An independent check of complete simultaneous relative-motion sweeps shortens unresolved motions by a shared fraction within each contact group before committing positions. The hard checks include every nearby body, beyond either predictor's neighbor limit. ORCA proposals that already pass every body, wall and speed check skip the corrective iterations; otherwise the common correction stage may change their velocities. The predictive baseline retains its original contact behavior.
 
 Circle-versus-wall checks use X/Y sliding and small movement substeps; path lookahead checks body clearance at corners. Door closures prepare body-clear relocations atomically and reject the edit if an affected person cannot fit on adjacent floor. They never force overlapping placement.
 

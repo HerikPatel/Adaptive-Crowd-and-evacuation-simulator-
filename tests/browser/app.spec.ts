@@ -114,10 +114,11 @@ test("larger map is the default and switching layouts resets canvas and crowd", 
     page.getByRole("button", { name: "Block Exit A", exact: true }),
   ).toBeVisible();
 });
-test("stress controls expose actual browser cadence", async ({
+for (const movement of ["predictive", "orca"]) test(`stress controls expose actual browser cadence (${movement})`, async ({
   page,
 }, info) => {
   await page.goto("/");
+  await page.locator("#setup-movement").selectOption(movement);
   await page.getByRole("button", { name: "Start experiment", exact: true }).click();
   for (const count of [200, 500]) {
     await page.locator("#population").fill(String(count));
@@ -141,7 +142,7 @@ test("stress controls expose actual browser cadence", async ({
       body: JSON.stringify(samples, null, 2),
       contentType: "application/json",
     });
-    console.log(`Browser stress ${count}:`, JSON.stringify(samples));
+    console.log(`Browser stress ${movement} ${count}:`, JSON.stringify(samples));
     expect(samples.every((s) => s.fps > 0)).toBeTruthy();
     await page.screenshot({
       path: info.outputPath(`stress-${count}.png`),

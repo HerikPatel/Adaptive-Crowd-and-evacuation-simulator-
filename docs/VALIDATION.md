@@ -1,5 +1,30 @@
 # Validation results
 
+## Optional building ORCA - November 16, 2026
+
+- `npm run build`: TypeScript and production compilation pass; ORCA attribution and license are included in the public build assets.
+- `npm test`: **95 passing unit and simulation tests**, including the shortcut's crossing, overspeed and wall-penetration rejection cases.
+- `npm run test:browser` against the production preview: **18 passing Chrome tests**, including both movement modes' stress samples, ORCA setup/reset/results/mobile controls, and existing stadium worker/CSV flows.
+
+The focused ORCA suite checks analytical velocity constraints and speed bounds, infeasible/parallel constraints, reciprocal avoidance over the horizon, deterministic degenerate pairs, head-on passage without contact correction, wall editing, atomic setting validation and reproducible reset. Full scenarios check body sweeps, wall clearance and speed limits at every step, including agents exiting during the step. All six ORCA scenario runs completed.
+
+With seed 549, Congestion Aware and fixed 1/60-second updates:
+
+| Building map | Population | Closure | ORCA completion (s) | Predictive completion (s) |
+| --- | ---: | --- | ---: | ---: |
+| Original bottleneck | 100 | None | 27.567 | Not compared in this batch |
+| Original bottleneck | 100 | A at 8 s | 26.133 | Not compared in this batch |
+| Original bottleneck | 500 | A at 8 s | 39.233 | Not compared in this batch |
+| Distributed wings | 500 | None | 54.650 | 40.167 |
+| Distributed wings | 500 | A at 8 s | 53.650 | 47.683 |
+| Distributed wings | 1,000 | None | 102.867 | 84.533 |
+
+The predictive larger-map results were reproduced by the regression run with the same code, seed, crowd and closure timing. ORCA is slower in all three compared cases, so predictive steering remains the default. These are simulation times; no rendering-performance claim follows from them. The ORCA branch also passes independent two-agent avoidance checks before the common contact stage, demonstrating that the new mode is more than a label on the existing solver.
+
+Dense ORCA neighborhoods sometimes have no velocity satisfying every constraint within the speed limit. For the 500-person open run, 179,449 of 570,972 individual proposals were marked constraint-infeasible before contact correction. The common safety stage still passes the full scenario's clearance checks; this counter is not a count of collisions. See [the integration assumptions](ORCA.md).
+
+Production-browser checks after the verified-clear shortcut collected eight samples per crowd. In the final full browser run, ORCA sampled **60 FPS at 200 agents** and **26-60 FPS at 500 agents** (16.7-38.6 ms); predictive steering sampled 60 FPS and 50-60 FPS respectively. An earlier isolated ORCA run sampled 58-60 FPS at 500, illustrating host/run variability. Heavy headless tests were stopped during both browser measurements. These are local early-evacuation samples, not sustained minimums or presentation-laptop guarantees. The shortcut retains every hard clearance check and skips corrective iterations only when the entire proposed step passes.
+
 ## Collision handling and stadium passing - November 15, 2026
 
 - `npm run build`: TypeScript and Vite production compilation pass, including the experiment worker.

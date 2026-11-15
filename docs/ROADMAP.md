@@ -1,6 +1,6 @@
 # Project status and proposed remaining work
 
-Updated November 15, 2026. These are recommended priorities, not additional assignment requirements. The intended final deadline is the first week of December; confirm the exact date from the course before scheduling submission.
+Updated November 16, 2026. These are recommended priorities, not additional assignment requirements. The intended final deadline is the first week of December; confirm the exact date from the course before scheduling submission.
 
 ## Implemented
 
@@ -9,6 +9,7 @@ Updated November 15, 2026. These are recommended priorities, not additional assi
 - Individual stadium profiles with reproducible speed, response delay and body size; a uniform comparison and pre-run individual overrides.
 - Stadium swept-body clearance and junction reservations, plus adaptive graph routing using observed traffic and stable route switching.
 - Grid predictive steering, joint contact resolution and hard simultaneous sweep checks; stadium passing on eligible wide corridors with a selectable queue baseline.
+- Optional ORCA local movement in both building maps, independent of route choice, with reproducible reset and result labels. See [implementation and limitations](ORCA.md).
 - Background comparisons, charts, CSV exports, configurable run limits, and matched-seed summary statistics. See the [experiment protocol](STADIUM_EXPERIMENTS.md) and [recorded follow-up](benchmarks/FOLLOW_UP.md).
 
 ## Movement quality (priority 1, completed)
@@ -17,7 +18,7 @@ Building agents now resolve nearby movements together, then check complete simul
 
 Stadium movement now models corridor width explicitly, permits bounded lateral passing, and merges walkers before junction ownership. Narrow aisles and transfers retain queues. The queue baseline remains selectable in live runs and experiment batches; CSV and statistics include movement mode. Existing v1 benchmarks remain historical rather than measurements of the v2 passing model.
 
-Regression coverage includes head-on encounters, touching queues, faster followers, merging, oncoming traffic, narrow passages, blocked landings, closures and maximum-population completion. See [validation evidence](VALIDATION.md) and [algorithm assumptions](AGENT_BEHAVIOR.md). These are deterministic heuristic solvers, not ORCA or learned controllers; arbitrary edited layouts can still create conservative waits.
+Regression coverage includes head-on encounters, touching queues, faster followers, merging, oncoming traffic, narrow passages, blocked landings, closures and maximum-population completion. See [validation evidence](VALIDATION.md) and [algorithm assumptions](AGENT_BEHAVIOR.md). The building ORCA option uses reciprocal velocity constraints followed by the common contact checks; stadium movement retains the existing heuristic. Neither is a learned controller; arbitrary edited layouts can still create conservative waits.
 
 Priorities 2–4 below are saved in [FUTURE_TODO.txt](../FUTURE_TODO.txt).
 
@@ -30,6 +31,8 @@ Save/load custom building layouts and experiment settings, with a versioned file
 Stadium geometry, widths, capacities, demographic distributions and speed effects remain assumptions. A permitted circulation plan, site observations, or defensible measurements would support calibration. Gender is currently a profile label, not a speed multiplier.
 
 The repeated-seed summaries improve reproducibility but do not establish realism. Run new matched-seed queue/passing comparisons for `stadium-movement-v2`; the saved v1 results do not measure passing. Further experiments can vary congestion coefficients, gate/transfer capacities, crowd composition and seed count, and separate the effects of speed awareness from congestion feedback. Document unchanged, worse and incomplete outcomes alongside improvements.
+
+Compare building ORCA with predictive steering across layouts and closures before changing defaults. Current dense-map ORCA cases complete more slowly. Extending ORCA into stadium concourses requires a surface/corridor integration while preserving transfer capacities and landing queues.
 
 ## Presentation and delivery
 

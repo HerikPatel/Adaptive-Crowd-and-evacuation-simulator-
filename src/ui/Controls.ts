@@ -1,6 +1,6 @@
 import { Experiment } from "../simulation/Experiment";
 import type { Grid } from "../simulation/Grid";
-import type { ExitId, RoutingMode } from "../config/simulationConfig";
+import type { ExitId, RoutingMode, MovementMode } from "../config/simulationConfig";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
 import { MAP_CHOICES, type MapChoiceId } from "../maps/maps";
@@ -14,6 +14,7 @@ export class Controls {
       <label for="map">Building layout</label><select id="map">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
       <p class="note" id="map-description"></p>
       <label for="routing">Routing strategy</label><select id="routing"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option></select>
+      <label for="movement">Local movement</label><select id="movement" aria-describedby="local-movement-help"><option value="predictive">Predictive steering</option><option value="orca">ORCA</option></select><p class="field-help" id="local-movement-help">Changing movement resets the crowd for comparison. Routing stays independently selectable.</p>
       <form id="population-form"><label for="population">Agent population</label><input id="population" type="number" min="1" step="1" required aria-describedby="population-help"><p class="field-help" id="population-help"></p><button type="submit" class="menu-button">Apply crowd size</button></form>
       <p class="error" id="control-error" role="alert"></p>
       <div class="buttons"><button id="start" class="primary">Start</button><button id="pause">Pause</button><button id="reset">Reset</button></div>
@@ -27,6 +28,7 @@ export class Controls {
     const s = experiment.simulation;
     this.syncSettings();
     document.querySelector("#routing")!.addEventListener("change", () => this.configure());
+    document.querySelector("#movement")!.addEventListener("change", () => this.configure());
     document.querySelector("#map")!.addEventListener("change", () => this.configure());
     document.querySelector("#population-form")!.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -63,6 +65,7 @@ export class Controls {
     const s = this.experiment.simulation;
     document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
     document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
+    document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
     document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
   }
   private configure(count = this.experiment.simulation.agentCount) {
@@ -77,7 +80,7 @@ export class Controls {
       this.experiment.begin(count,
         document.querySelector<HTMLSelectElement>("#routing")!.value as RoutingMode,
         this.experiment.scenario,
-        mapId, false);
+        mapId, false, document.querySelector<HTMLSelectElement>("#movement")!.value as MovementMode);
       message.textContent = "";
     } catch (error) {
       message.textContent = (error as Error).message;

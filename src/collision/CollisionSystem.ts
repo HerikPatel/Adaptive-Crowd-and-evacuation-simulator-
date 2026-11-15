@@ -179,7 +179,7 @@ export class CollisionSystem {
    * Final simultaneous sweeps are checked independently of solver convergence.
    * Starting positions must already be separated (spawn/edit/closure enforce this).
    */
-  reserveMovements(movements: { agent: Agent; position: Vector2 }[], agents: Agent[], hash: SpatialHash<Agent>, grid: Grid, dt: number, tick: number) {
+  reserveMovements(movements: { agent: Agent; position: Vector2 }[], agents: Agent[], hash: SpatialHash<Agent>, grid: Grid, dt: number, tick: number, acceptClear = false) {
     const targets = new Map(movements.map(m => [m.agent.id, m.position]));
     const active = agents.filter(a => !a.evacuated);
     const maxTravel = Math.max(0, ...active.map(a => a.speed * dt)), maxRadius = Math.max(0, ...active.map(a => a.radius));
@@ -195,6 +195,16 @@ export class CollisionSystem {
       // A half-pixel buffer leaves room for finite-iteration residuals in dense
       // contact chains; the independent sweep check uses the actual body radii.
       pairs.push({ a, b, nx: x / d, ny: y / d, minimum: a.radius + b.radius + 0.5 - d });
+    }
+    // ORCA often already supplies a clear simultaneous step. In that case there
+    // is nothing to correct: verify every reachable pair, wall and speed bound,
+    // then retain the proposal instead of iterating toward an extra soft margin.
+    // The baseline retains its original contact behavior for comparison.
+    if (acceptClear) {
+      const end = (a: Agent) => targets.get(a.id) ?? a.position;
+      if (active.every(a => Math.hypot(end(a).x - a.position.x, end(a).y - a.position.y) <= a.speed * dt + 1e-8 && this.canTravel(a.position, end(a), a.radius, grid)) &&
+          pairs.every(({ a, b }) => motionsClear(a.position, end(a), b.position, end(b), a.radius + b.radius)))
+        return active.map(agent => ({ agent, position: end(agent) }));
     }
     const walls = new Map<number, { nx: number; ny: number; minimum: number }[]>();
     for (const a of active) {

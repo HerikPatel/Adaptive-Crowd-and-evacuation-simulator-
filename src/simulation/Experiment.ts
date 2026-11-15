@@ -1,4 +1,4 @@
-import type { RoutingMode } from "../config/simulationConfig";
+import type { RoutingMode, MovementMode } from "../config/simulationConfig";
 import { Simulation } from "./Simulation";
 import { MAPS, type MapId } from "../maps/maps";
 
@@ -14,14 +14,16 @@ export class Experiment {
   closureMessage = "";
   revision = 0;
 
-  begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId, running = true) {
+  begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId, running = true, movement: MovementMode = this.simulation.movementMode) {
     // Validate before changing a running experiment.
     if (mode !== "shortest" && mode !== "congestion") throw new Error("Unknown routing strategy");
+    if (movement !== "predictive" && movement !== "orca") throw new Error("Unknown local movement mode");
     if (scenario !== "open" && scenario !== "closure") throw new Error("Unknown scenario");
     if (!Object.hasOwn(MAPS, mapId)) throw new Error("Unknown building layout");
     this.simulation.validatePopulation(count, mapId);
     this.simulation.agentCount = count;
     this.simulation.mode = mode;
+    this.simulation.movementMode = movement;
     this.simulation.mapId = mapId;
     this.scenario = scenario;
     this.restart(running);

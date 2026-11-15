@@ -1,4 +1,4 @@
-import { CONFIG, type ExitId, type RoutingMode } from "../config/simulationConfig";
+import { CONFIG, type ExitId, type RoutingMode, type MovementMode } from "../config/simulationConfig";
 import { createMvpMap } from "../maps/mvpMap";
 import { MAPS, type MapId } from "../maps/maps";
 import { CongestionRouter } from "../pathfinding/CongestionRouter";
@@ -7,6 +7,7 @@ import { Metrics } from "./Metrics";
 import { distance } from "../utils/Vector2";
 import { seededRandom } from "../utils/math";
 import { CollisionSystem } from "../collision/CollisionSystem";
+import { OrcaSolver } from "../collision/OrcaSolver";
 import { SpatialHash } from "./SpatialHash";
 import { Agent } from "./Agent";
 import { Grid } from "./Grid";
@@ -16,6 +17,8 @@ export class Simulation {
   time = 0;
   running = false;
   mode: RoutingMode = "congestion";
+  movementMode: MovementMode = "predictive";
+  orca = new OrcaSolver();
   density = new Density();
   router = new CongestionRouter();
   hash = new SpatialHash<Agent>(CONFIG.spatialCellSize);
@@ -64,6 +67,7 @@ export class Simulation {
     this.replanQueue = [];
     this.routeSwitchCount = 0;
     this.density = new Density();
+    this.orca = new OrcaSolver();
     this.metrics = new Metrics(this.agentCount, this.grid.exitIds);
     const random = seededRandom(CONFIG.seed),
       slots = this.spawnSlots(this.grid);
@@ -210,6 +214,7 @@ export class Simulation {
     this.processReplans();
     const movements: { agent: Agent; position: { x: number; y: number } }[] =
       [];
+    const maxSpeed = Math.max(0, ...this.agents.filter(a => !a.evacuated).map(a => a.speed));
     for (const a of this.agents) {
       if (a.evacuated) continue;
       // Visible local lookahead prevents crowds from fighting for one exact cell
@@ -222,15 +227,18 @@ export class Simulation {
         if (distance(a.position, next) <= 3 * this.grid.cellSize && this.collision.canTravel(a.position, next, a.radius, this.grid)) a.pathIndex = i;
       }
       const node = a.path[a.pathIndex];
-      if (!node) continue;
-      const goal = this.grid.center(node);
-      if (distance(a.position, goal) < CONFIG.waypointThreshold) {
+      const goal = node ? this.grid.center(node) : null;
+      const reached = goal && distance(a.position, goal) < CONFIG.waypointThreshold;
+      if (reached) {
         a.pathIndex++;
-        continue;
       }
-      const velocity = this.collision.velocity(
+      if ((!goal || reached) && this.movementMode === "predictive") continue;
+      const desired = goal && !reached ? this.collision.direction(a, goal) : { x: 0, y: 0 };
+      const velocity = this.movementMode === "orca"
+        ? this.orca.velocity(a, desired, this.hash, this.grid, dt, maxSpeed)
+        : this.collision.velocity(
         a,
-        this.collision.direction(a, goal),
+        desired,
         this.hash,
         this.grid,
         Math.round(this.time / CONFIG.fixedDt),
@@ -241,7 +249,7 @@ export class Simulation {
       });
     }
     // Compute from a shared snapshot before committing positions (no stale hash buckets).
-    for (const { agent: a, position } of this.collision.reserveMovements(movements, this.agents, this.hash, this.grid, dt, Math.round(this.time / CONFIG.fixedDt))) {
+    for (const { agent: a, position } of this.collision.reserveMovements(movements, this.agents, this.hash, this.grid, dt, Math.round(this.time / CONFIG.fixedDt), this.movementMode === "orca")) {
       a.velocity = { x: (position.x - a.position.x) / dt, y: (position.y - a.position.y) / dt };
       a.stalledSeconds = Math.hypot(a.velocity.x, a.velocity.y) < 0.1 * a.speed ? a.stalledSeconds + dt : 0;
       a.position = position;
