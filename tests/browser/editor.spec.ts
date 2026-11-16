@@ -25,6 +25,7 @@ test("custom size, draw/erase/undo, multiple exits, and reset work on a scaled c
   await page.goto("/");
   await page.locator("#setup-map").selectOption("mvp");
   await page.locator("#setup-population").fill("137");
+  await page.locator("#setup-routing").selectOption("flow-field");
   await page.getByRole("button", { name: "Edit layout first" }).click();
   await expect(page.locator("#map")).toHaveValue("mvp");
   await expect(page.locator("#status")).toHaveText("Ready");

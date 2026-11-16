@@ -68,6 +68,7 @@ export class Simulation {
     this.routeSwitchCount = 0;
     this.density = new Density();
     this.orca = new OrcaSolver();
+    this.router = new CongestionRouter();
     this.metrics = new Metrics(this.agentCount, this.grid.exitIds);
     const random = seededRandom(CONFIG.seed),
       slots = this.spawnSlots(this.grid);
@@ -187,7 +188,7 @@ export class Simulation {
       a.queued = false;
       if (a.evacuated) continue;
       processed++;
-      const route = this.router.plan(a, this.grid, this.mode);
+      const route = this.router.plan(a, this.grid, this.mode, this.time);
       if (route) {
         if (a.targetExit && a.targetExit !== route.targetExit) {
           this.routeSwitchCount++;

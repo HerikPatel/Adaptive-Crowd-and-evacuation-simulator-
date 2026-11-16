@@ -10,7 +10,7 @@ The project's two computer graphics pillars are **Pathfinding & Navigation** (sh
 | --- | --- | --- |
 | Maps | Original bottleneck and Distributed wings | Lower bowl, separate upper decks, and concourse/gates |
 | Crowd size | 1–1,000, limited by available spawn space | 1–1,000 spectators with seating presets |
-| Routing | A* Shortest Path or Congestion Aware | Free-flow Dijkstra or adaptive travel-time potentials |
+| Routing | A* Shortest Path, Congestion Aware, or **Shared Flow Field** | Free-flow Dijkstra or adaptive travel-time potentials |
 | Local movement | Predictive steering (default) or **ORCA** | Predictive passing or queue baseline; ORCA is future work |
 | Individual behavior | Seeded 0.9–1.1× speed variation | Synthetic adult profiles, response delays, body sizes, and individual overrides |
 | Editing | Draw/erase walls, add/widen up to eight exits, undo | Close connections and edit transfer assumptions |
@@ -39,7 +39,7 @@ npm run preview
 - **Building layout:** the default **Distributed wings** map is 70×42 cells (1400×840 simulation pixels), with agents spread across four wings linked by a ring and central passages. Exit A faces west, while Exit B faces south. A has a narrow bottleneck and B has a wide approach; the cheaper route depends on an agent's location and congestion.
 - The original **50×30 bottleneck** map remains available for Assignment 3 comparisons, with its shared start area and two east-facing exits. Changing layout resets the run and resizes the Canvas automatically.
 - **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected layout, population, routing strategy and local movement mode. Positions are reproducible within each layout.
-- **Routing strategy:** Shortest Path or Congestion Aware. Changing strategy resets the run for comparison.
+- **Routing strategy:** Shortest Path, Congestion Aware, or Shared Flow Field. Shared fields reuse congestion-aware cost/direction maps across agents. Changing strategy resets the run for comparison.
 - **Local movement:** Predictive steering (default) or ORCA for both building maps. Changing movement resets the crowd for a matched comparison; results label the mode. Both share the same routing and final collision checks. See the [ORCA implementation and limitations](docs/ORCA.md).
 - **Agent population:** enter a whole number from 1 to the layout's capacity, capped at 1,000. Applying a new population resets the run.
 - **Exit scenario:** start with all exits open, or schedule Exit A to close at five simulation seconds. Each configured exit also has its own **Block / Re-open** button for manual experiments. Closures invalidate affected paths and prioritize rerouting; reopening makes an exit eligible at the next cooldown. A closure is rejected if it would trap a floor area or require an unsafe body relocation.
@@ -56,13 +56,17 @@ Edits must stay inside the map boundary, preserve sufficient spawn space, and le
 
 Edited layouts survive resets and map switches during the current visit. Reloading the page restores the presets. Save/load, spawn-area editing, and redo remain planned work.
 
+### Try shared flow fields
+
+Select **Routing strategy → Shared Flow Field** with either local movement mode. One reverse Dijkstra field per open exit serves the whole crowd. Fields refresh from congestion every 0.5 simulation seconds and invalidate immediately for layout or exit changes. Agents retain their exit-switching cooldown and improvement threshold. **Route requests** and **Routing searches / field builds** show how much search work is shared; compare against Congestion Aware with the same map, population, movement, and closures. See [algorithm, cache behavior, and limitations](docs/SHARED_FLOW_FIELD.md).
+
 ### Compare ORCA with predictive steering
 
 1. Choose a building map, population, routing strategy, and exit scenario. Run with **Local movement → Predictive steering** and record the results.
 2. Repeat with **Local movement → ORCA**, keeping the other settings identical. Changing movement resets the crowd with the same seed, initial positions, and speeds. Repeat any manual closures at the same simulation times.
 3. Compare evacuation time, exit use, congestion, and render performance. The results screen identifies the movement mode.
 
-ORCA (Optimal Reciprocal Collision Avoidance) chooses local velocities; A* and the congestion-aware router still choose routes. Both movement modes retain independent body, wall, and speed checks. ORCA is optional because the three latest matched dense-map cases completed more slowly than predictive steering. For example, 500 agents on Distributed wings with all exits open finished in **54.650 s with ORCA versus 40.167 s with predictive steering** (seed 549, Congestion Aware). These are simulated evacuation times, not browser performance measurements. See [implementation and attribution](docs/ORCA.md) and [validation results](docs/VALIDATION.md).
+ORCA (Optimal Reciprocal Collision Avoidance) chooses local velocities; the selected A* or shared-field strategy still chooses routes. Both movement modes retain independent body, wall, and speed checks. In the recorded Congestion Aware A* comparison, ORCA's three matched dense-map cases completed more slowly than predictive steering. For example, 500 agents on Distributed wings with all exits open finished in **54.650 s with ORCA versus 40.167 s with predictive steering** (seed 549). These are simulated evacuation times, not browser performance measurements. See [implementation and attribution](docs/ORCA.md) and [validation results](docs/VALIDATION.md).
 
 ## SHI Stadium simulation
 
@@ -123,6 +127,7 @@ src/
     PriorityQueue.ts        Stable binary min-heap
     AStar.ts                Manual cardinal A* with Manhattan heuristic
     CongestionRouter.ts     Exit comparison, commitment, and hysteresis
+    SharedFlowField.ts      Shared reverse Dijkstra costs and successor directions
     StadiumRouter.ts        Surface-aware Dijkstra, closures, connectivity inspection
     StadiumTrafficRouter.ts Adaptive travel-time potentials and route commitment
   collision/
@@ -163,11 +168,13 @@ edgeCost = 1 + congestionWeight × normalizedDensity
 
 The default congestion weight is 3. Agents follow cell-center waypoints in continuous pixel coordinates. Local lookahead skips a waypoint only when the agent circle can travel to the next waypoint without intersecting a wall. This avoids deadlocks caused by several agents trying to occupy exactly the same waypoint center.
 
+Shared Flow Field uses the same weighted objective with reverse Dijkstra, caching one integration/successor field per exit. Accepted routes follow these shared successors into the existing waypoint controller. It avoids per-agent graph searches while retaining separate exit commitment. Weighted costs agree with A* for an identical snapshot; tie choices and the slower density refresh can produce different trajectories.
+
 ### Congestion and heatmap
 
 For display units, each 20 px grid cell represents 1 m². Each simulation step, spatial-hash queries count agents in each walkable cell's 3×3 neighborhood. Dividing by the number of walkable cells in that neighborhood gives local agents/m². Peak density is the maximum unsmoothed value observed during a run.
 
-Density normalizes against 2.2 agents/m² and clamps to 0–1. At 10 Hz, both routing and heatmap use `previous × 0.8 + current × 0.2`. The Canvas heatmap is cached and rebuilt only when that snapshot changes. Congestion is separate from map cell types. Values describe this simplified model, not a calibrated real building.
+Density normalizes against 2.2 agents/m² and clamps to 0–1. At 10 Hz, the density snapshot uses `previous × 0.8 + current × 0.2`. A* and the heatmap use that snapshot directly; shared flow fields capture it at most every 0.5 simulation seconds unless topology changes. The Canvas heatmap is cached and rebuilt only when the density snapshot changes. Congestion is separate from map cell types. Values describe this simplified model, not a calibrated real building.
 
 ### Oscillation and herding prevention
 
@@ -197,6 +204,7 @@ Times are seconds from the first simulation update; paused wall-clock time is ex
 - **Average evacuation time:** mean departure time of agents evacuated so far.
 - **Per-exit evacuated / last / final clear:** departure count and last observed departure through each configured exit while running; final time-to-clear once the complete run finishes. An unused exit shows “—” for its time. This avoids claiming an exit has cleared while future agents could still select it.
 - **Exit switches:** actual changes between exits, excluding initial assignments and same-exit replans.
+- **Route requests / routing searches:** agent planning decisions versus per-exit A* searches or shared field builds. Field builds cover the reachable grid, so counts alone do not measure CPU time.
 - **Peak density:** maximum unsmoothed local agents/m² across all steps and walkable cells.
 - **FPS / frame time:** render cadence averaged over approximately 0.5 s. Frame time is the actual interval between rendered frames, not only update CPU cost.
 
@@ -208,9 +216,9 @@ npm run build
 npm run test:browser
 ```
 
-The latest recorded validation on **November 16, 2026** passed **95 unit/simulation tests**, the TypeScript/Vite production build, and **18 Chrome browser tests against the production preview**. See [validation results](docs/VALIDATION.md) for scenarios, measured outcomes, and limitations.
+The latest recorded validation on **November 16, 2026** passed **108 unit/simulation tests**, the TypeScript/Vite production build, and **22 Chrome browser tests against the production preview**. See [validation results](docs/VALIDATION.md) for scenarios, measured outcomes, and limitations.
 
-Unit/scenario tests cover routing, hysteresis, spatial queries, ORCA velocity constraints, simultaneous body sweeps, wall clearance, head-on encounters, touching queues, dense evacuation, live closures, deterministic reset, stadium passing/merging, queue baselines, and experiment statistics. Large-map runs check body and wall clearance and speed budgets at every fixed step, including people exiting during that step.
+Unit/scenario tests cover routing, shared-field cost equivalence and cache invalidation, hysteresis, spatial queries, ORCA velocity constraints, simultaneous body sweeps, wall clearance, head-on encounters, touching queues, dense evacuation, live closures, deterministic reset, stadium passing/merging, queue baselines, and experiment statistics. Large-map runs check body and wall clearance and speed budgets at every fixed step, including people exiting during that step.
 
 Browser tests use locally installed Chrome (`channel: 'chrome'` in `playwright.config.ts`) and start/reuse Vite on port 5174. Install Chrome or change the channel to an installed browser. Tests exercise controls, pause, dynamic closure, completion, pixel-identical reset, responsive layout, and record stress-run FPS samples. Screenshots and performance attachments go to `test-results/`.
 
@@ -221,6 +229,8 @@ See [manual scenarios](docs/MANUAL_TESTS.md) for the assignment demo and hardwar
 ## Performance testing
 
 Target ≥30 FPS with 200 agents and ≥20 FPS with 500 agents on a mid-range laptop. These are measurement targets, not guarantees across hardware.
+
+The latest shared-field browser samples reached 37–42 FPS at 200 agents with either movement mode. At 500, predictive steering sampled 60 FPS (37 FPS in the subsequent screenshot), while ORCA sampled 9–15 FPS, below the target. A separate build of the previous commit reproduced low A* cadence on the same host. See [validation details](docs/VALIDATION.md); these short samples are not sustained minimums.
 
 Build and run `npm run preview`. Use a foreground browser tab at a fixed window size. Turn debug overlays off, run each population from reset, and record FPS/frame time during the crowded first 5–20 simulation seconds. Repeat with A blocked at five seconds. Record browser version, OS, CPU/GPU, window size, routing and movement modes, and observed minimum/typical FPS. Repeat with overlays enabled separately. Use the always-visible stage readout in the demo recording. If simulated seconds lag wall time, report that alongside FPS. Profile stadium rendering separately from the building maps.
 
@@ -240,6 +250,7 @@ The next implementation priority is **editor persistence**: save/load layouts an
 - [Future TODO](FUTURE_TODO.txt) — current priorities and unfinished work.
 - [Roadmap](docs/ROADMAP.md) — implemented features and completion criteria.
 - [ORCA](docs/ORCA.md) — velocity solver, integration choices, and attribution.
+- [Shared flow fields](docs/SHARED_FLOW_FIELD.md) — shared routing, refresh rules, and comparison guidance.
 - [Agent behavior](docs/AGENT_BEHAVIOR.md) — individual profiles and collision handling.
 - [SHI Stadium map plan](docs/SHI_STADIUM_MAP_PLAN.md) — sources, layers, and assumptions.
 - [Stadium experiments](docs/STADIUM_EXPERIMENTS.md) — comparison protocol and exported metrics.

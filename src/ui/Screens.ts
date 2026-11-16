@@ -1,4 +1,4 @@
-import { MOVEMENT_LABELS, type RoutingMode, type MovementMode } from "../config/simulationConfig";
+import { MOVEMENT_LABELS, ROUTING_LABELS, type RoutingMode, type MovementMode } from "../config/simulationConfig";
 import { Experiment, type Scenario, type Screen } from "../simulation/Experiment";
 import { MAPS, type MapChoiceId } from "../maps/maps";
 
@@ -84,7 +84,7 @@ export class Screens {
         ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? "Exit A closed at 5 s" : "Finished before scheduled closure"
         : "All exits initially open";
       document.querySelector("#result-context")!.textContent =
-        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${s.mode === "congestion" ? "Congestion Aware" : "Shortest Path"} · ${MOVEMENT_LABELS[s.movementMode]} · ${scenario}`;
+        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${ROUTING_LABELS[s.mode]} · ${MOVEMENT_LABELS[s.movementMode]} · ${scenario}`;
       const results: Record<string, string> = {
         evacuated: `${m.evacuatedCount} / ${s.agentCount}`, total: seconds(m.totalEvacuationTime),
         average: seconds(m.averageEvacuationTime), peak: `${m.peakDensity.toFixed(2)} agents/m²`,
