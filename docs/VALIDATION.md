@@ -1,5 +1,41 @@
 # Validation results
 
+## Shared building flow fields - November 16, 2026
+
+The new selectable routing mode uses shared reverse Dijkstra fields with the same density-weighted objective as Congestion Aware A*. `npm run build` passes TypeScript and production compilation, and the full `npm test` suite passes **108 unit and simulation tests**. Focused checks verify weighted cost equivalence for every cell in a small layout and all eight exits, wide openings, unreachable cells, deterministic successors, snapshot reuse, immediate topology invalidation, exit commitment, edits, and reset with ORCA. See [algorithm details](SHARED_FLOW_FIELD.md).
+
+Production-preview browser checks passed **22 tests**: 18 control/editor/results/stadium regressions, followed by four routing/movement stress cases after the heavy simulation tests finished. The new controls preserve settings through resets, map changes, stadium visits and results, and fit the mobile viewport.
+
+The static 1,000-person initial-routing comparison used **two shared field builds instead of 2,000 per-agent A* searches**, with identical minimum costs and exit choices. Search counts do not represent equal units of work, and this isolated comparison does not measure browser FPS or full evacuation time.
+
+Six complete scenarios passed continuous body sweeps, wall clearance and speed limits at every fixed step, including agents exiting during the step. Seed 549, shared flow fields, fixed 1/60-second updates:
+
+| Map | Population | Movement | Exit A closure | Completion (s) | Route requests | Field builds |
+| --- | ---: | --- | --- | ---: | ---: | ---: |
+| Original bottleneck | 100 | Predictive | None | 25.833 | 2,061 | 98 |
+| Original bottleneck | 100 | ORCA | 8 s | 26.117 | 2,238 | 66 |
+| Distributed wings | 500 | Predictive | None | 40.967 | 6,611 | 162 |
+| Distributed wings | 500 | Predictive | 8 s | 50.733 | 9,770 | 116 |
+| Distributed wings | 500 | ORCA | 8.083 s after retries | 48.133 | 9,985 | 114 |
+| Distributed wings | 1,000 | ORCA | None | 100.633 | 20,179 | 396 |
+
+In the 500-person ORCA case, five attempts from 8 s were rejected because the occupied doorway could not close without an unsafe body relocation. Each rejection preserved all positions and left the exit open. The test retries each fixed step; the closure succeeds at 8.083 s. This is a different closure time from the earlier A* benchmark and must not be presented as a matched 8-second comparison. The UI's scheduled closure still makes one attempt and reports rejection; automatic retries are only part of this test scenario.
+
+Flow-field routing does not uniformly improve evacuation time: for 500-person Distributed wings with predictive steering, open and 8-second closure outcomes are 40.967/50.733 s, compared with the recorded A* results of 40.167/47.683 s. The 1,000-person open ORCA outcome is 100.633 s versus 102.867 s with A*. These single-seed observations include different tie choices and density-refresh timing; broader comparisons remain future work.
+
+Eight early-evacuation Chrome readout samples per population, from the production preview on this host:
+
+| Routing | Movement | 200-agent sampled FPS | 500-agent sampled FPS |
+| --- | --- | ---: | ---: |
+| Congestion Aware A* | Predictive | 40–44 | 8–9 |
+| Congestion Aware A* | ORCA | 36–42 | 6–9 |
+| Shared Flow Field | Predictive | 37–42 | 60 |
+| Shared Flow Field | ORCA | 37–42 | 9–15 |
+
+These samples vary substantially from earlier sessions. To check for a regression, a separate temporary production build of the previous commit (`6b87232`) ran the same two A* stress tests and also passed: predictive sampled 38–44/8–9 FPS at 200/500 agents, and ORCA sampled 36–40/7–9 FPS. That control reproduces the low baseline cadence without this change. No other headless simulation test was running during either stress batch.
+
+The flow/predictive screenshot taken after its eight 60-FPS samples shows 37 FPS, so the sampled range is not a sustained minimum. The 500-person ORCA samples remain below the 20-FPS project target. These short observations do not establish hardware-independent improvements; dense ORCA optimization and presentation-laptop profiling remain open work.
+
 ## Optional building ORCA - November 16, 2026
 
 - `npm run build`: TypeScript and production compilation pass; ORCA attribution and license are included in the public build assets.

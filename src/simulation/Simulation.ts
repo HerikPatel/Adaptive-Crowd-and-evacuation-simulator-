@@ -70,6 +70,7 @@ export class Simulation {
     this.routeSwitchCount = 0;
     this.density = new Density();
     this.orca = new OrcaSolver();
+    this.router = new CongestionRouter();
     this.metrics = new Metrics(this.agentCount, this.grid.exitIds);
     const random = seededRandom(CONFIG.seed),
       slots = this.spawnSlots(this.grid);
@@ -189,7 +190,7 @@ export class Simulation {
       a.queued = false;
       if (a.evacuated) continue;
       processed++;
-      const route = this.router.plan(a, this.grid, this.mode, this.algorithm);
+      const route = this.router.plan(a, this.grid, this.mode, this.time, this.algorithm);
       if (route) {
         if (a.targetExit && a.targetExit !== route.targetExit) {
           this.routeSwitchCount++;
@@ -230,7 +231,7 @@ export class Simulation {
       }
       // Any-angle (Theta*) routes all hug the same corners. Advance as soon as the
       // following waypoint is in line of sight instead of crowding the exact corner point.
-      if (this.algorithm === "thetastar") {
+      if (this.algorithm === "thetastar" && this.mode !== "flow-field") {
         const here = this.grid.cell(a.position);
         while (a.pathIndex + 1 < a.path.length && this.grid.walkable(here.x, here.y) &&
                lineOfSight(this.grid, here, a.path[a.pathIndex + 1])) a.pathIndex++;

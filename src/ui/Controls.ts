@@ -13,7 +13,7 @@ export class Controls {
     document.querySelector("#controls")!.innerHTML = `
       <label for="map">Building layout</label><select id="map">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
       <p class="note" id="map-description"></p>
-      <label for="routing">Routing strategy</label><select id="routing"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option></select>
+      <label for="routing">Routing strategy</label><select id="routing" aria-describedby="routing-control-help"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option><option value="flow-field">Shared Flow Field</option></select><p id="routing-control-help" class="field-help">Shared Flow Field reuses congestion-aware routes across the crowd. Changing routing resets the run.</p>
       <label for="algorithm">Path-planning algorithm</label><select id="algorithm" aria-describedby="algorithm-help">${PATH_ALGORITHMS.map(id => `<option value="${id}">${ALGORITHM_LABELS[id]}</option>`).join("")}</select><p class="field-help" id="algorithm-help"></p>
       <label for="movement">Local movement</label><select id="movement" aria-describedby="local-movement-help"><option value="predictive">Predictive steering</option><option value="orca">ORCA</option></select><p class="field-help" id="local-movement-help">Changing movement resets the crowd for comparison. Routing stays independently selectable.</p>
       <form id="population-form"><label for="population">Agent population</label><input id="population" type="number" min="1" step="1" required aria-describedby="population-help"><p class="field-help" id="population-help"></p><button type="submit" class="menu-button">Apply crowd size</button></form>
@@ -58,6 +58,7 @@ export class Controls {
       ["evacuated", "Agents evacuated"], ["peak", "Peak density · agents/m²"],
       ["average", "Average evacuation"], ["total", "Total evacuation"],
       ["switches", "Exit switches"], ["queue", "Replan queue"],
+      ["route-requests", "Route requests"], ["route-searches", "Routing searches / field builds"],
     ];
     document.querySelector("#metrics")!.innerHTML = fields.map(([id, label]) =>
       `<div class="metric"><span>${label}</span><strong id="metric-${id}">—</strong></div>`).join("");
@@ -69,7 +70,11 @@ export class Controls {
     document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
     document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
     document.querySelector<HTMLSelectElement>("#algorithm")!.value = s.algorithm;
-    document.querySelector("#algorithm-help")!.textContent = ALGORITHM_HELP[s.algorithm];
+    const flowField = s.mode === "flow-field";
+    document.querySelector<HTMLSelectElement>("#algorithm")!.disabled = flowField;
+    document.querySelector("#algorithm-help")!.textContent = flowField
+      ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
+      : ALGORITHM_HELP[s.algorithm];
     document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
   }
   private configure(count = this.experiment.simulation.agentCount) {
@@ -128,6 +133,7 @@ export class Controls {
       average: m.evacuatedCount ? seconds(m.averageEvacuationTime) : "—",
       total: seconds(m.totalEvacuationTime), switches: String(m.routeSwitchCount),
       queue: String(s.replanQueue.filter((a) => !a.evacuated).length),
+      "route-requests": String(s.router.requests), "route-searches": String(s.router.searches),
     };
     for (const [id, value] of Object.entries(entries)) this.values.get(id)!.textContent = value;
     document.querySelector<HTMLButtonElement>("#start")!.disabled = s.running || m.remainingAgents === 0;

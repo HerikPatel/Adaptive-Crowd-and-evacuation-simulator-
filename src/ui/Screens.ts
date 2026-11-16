@@ -1,4 +1,4 @@
-import { MOVEMENT_LABELS, ALGORITHM_LABELS, ALGORITHM_HELP, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
+import { MOVEMENT_LABELS, ROUTING_LABELS, ALGORITHM_LABELS, ALGORITHM_HELP, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { Experiment, type Scenario, type Screen } from "../simulation/Experiment";
 import { MAPS, type MapChoiceId } from "../maps/maps";
 
@@ -31,9 +31,16 @@ export class Screens {
       document.querySelector("#setup-error")!.textContent = "";
       this.updateSetup();
     });
-    document.querySelector("#setup-algorithm")!.addEventListener("change", (event) => {
-      document.querySelector("#setup-algorithm-help")!.textContent = ALGORITHM_HELP[(event.target as HTMLSelectElement).value as PathAlgorithm];
-    });
+    const syncSetupAlgorithm = () => {
+      const flowField = document.querySelector<HTMLSelectElement>("#setup-routing")!.value === "flow-field";
+      const select = document.querySelector<HTMLSelectElement>("#setup-algorithm")!;
+      select.disabled = flowField;
+      document.querySelector("#setup-algorithm-help")!.textContent = flowField
+        ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
+        : ALGORITHM_HELP[select.value as PathAlgorithm];
+    };
+    document.querySelector("#setup-algorithm")!.addEventListener("change", syncSetupAlgorithm);
+    document.querySelector("#setup-routing")!.addEventListener("change", syncSetupAlgorithm);
     document.querySelector("#run-again")!.addEventListener("click", () => {
       experiment.restart(true);
       this.update();
@@ -75,6 +82,7 @@ export class Screens {
         document.querySelector<HTMLSelectElement>("#setup-movement")!.value = s.movementMode;
         document.querySelector<HTMLSelectElement>("#setup-algorithm")!.value = s.algorithm;
         document.querySelector("#setup-algorithm-help")!.textContent = ALGORITHM_HELP[s.algorithm];
+        document.querySelector("#setup-routing")!.dispatchEvent(new Event("change"));
         document.querySelector<HTMLSelectElement>("#setup-scenario")!.value = e.scenario;
       }
       this.updateSetup();
@@ -84,7 +92,10 @@ export class Screens {
       document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
       document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
       document.querySelector<HTMLSelectElement>("#algorithm")!.value = s.algorithm;
-      document.querySelector("#algorithm-help")!.textContent = ALGORITHM_HELP[s.algorithm];
+      document.querySelector<HTMLSelectElement>("#algorithm")!.disabled = s.mode === "flow-field";
+      document.querySelector("#algorithm-help")!.textContent = s.mode === "flow-field"
+        ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
+        : ALGORITHM_HELP[s.algorithm];
     } else if (e.screen === "results") {
       const m = s.metrics;
       const seconds = (value: number | null) => value === null ? "Unused" : `${value.toFixed(2)} s`;
@@ -92,7 +103,7 @@ export class Screens {
         ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? "Exit A closed at 5 s" : "Finished before scheduled closure"
         : "All exits initially open";
       document.querySelector("#result-context")!.textContent =
-        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${s.mode === "congestion" ? "Congestion Aware" : "Shortest Path"} · ${ALGORITHM_LABELS[s.algorithm]} · ${MOVEMENT_LABELS[s.movementMode]} · ${scenario}`;
+        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${ROUTING_LABELS[s.mode]}${s.mode === "flow-field" ? "" : ` · ${ALGORITHM_LABELS[s.algorithm]}`} · ${MOVEMENT_LABELS[s.movementMode]} · ${scenario}`;
       const results: Record<string, string> = {
         evacuated: `${m.evacuatedCount} / ${s.agentCount}`, total: seconds(m.totalEvacuationTime),
         average: seconds(m.averageEvacuationTime), peak: `${m.peakDensity.toFixed(2)} agents/m²`,

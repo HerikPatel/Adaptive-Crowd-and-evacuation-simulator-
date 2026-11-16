@@ -4,6 +4,9 @@ import {
   type PathAlgorithm,
   type RoutingMode,
 } from "../config/simulationConfig";
+
+/** Per-agent searches; Shared Flow Field routing builds its own fields instead. */
+type SearchMode = Exclude<RoutingMode, "flow-field">;
 import { Grid } from "../simulation/Grid";
 import type { GridPosition } from "../utils/Vector2";
 import { PriorityQueue } from "./PriorityQueue";
@@ -26,7 +29,7 @@ const SQRT2 = Math.SQRT2;
 /** Clearance used for any-angle line of sight: agent radius plus a 1 px margin. */
 const LOS_RADIUS = CONFIG.agentRadius + 1;
 
-export function stepCost(grid: Grid, next: number, mode: RoutingMode, weight: number) {
+export function stepCost(grid: Grid, next: number, mode: SearchMode, weight: number) {
   return 1 + (mode === "congestion" ? weight * grid.density[next] : 0);
 }
 
@@ -35,7 +38,7 @@ export function segmentCost(
   grid: Grid,
   a: GridPosition,
   b: GridPosition,
-  mode: RoutingMode,
+  mode: SearchMode,
   weight: number = CONFIG.congestionWeight,
 ): number {
   const length = Math.hypot(b.x - a.x, b.y - a.y);
@@ -138,7 +141,7 @@ export function routeCost(
   grid: Grid,
   from: GridPosition,
   waypoints: GridPosition[],
-  mode: RoutingMode,
+  mode: SearchMode,
   algorithm: PathAlgorithm,
   weight: number = CONFIG.congestionWeight,
 ): number {
@@ -170,7 +173,7 @@ function bestFirst(
   grid: Grid,
   start: GridPosition,
   targetExit: ExitId,
-  mode: RoutingMode,
+  mode: SearchMode,
   weight: number,
   priority: (g: number, h: number) => number,
 ): PathResult | null {
@@ -203,7 +206,7 @@ function bestFirst(
   return null;
 }
 
-function breadthFirst(grid: Grid, start: GridPosition, targetExit: ExitId, mode: RoutingMode, weight: number): PathResult | null {
+function breadthFirst(grid: Grid, start: GridPosition, targetExit: ExitId, mode: SearchMode, weight: number): PathResult | null {
   const target = goalsFor(grid, start, targetExit);
   if (!target) return null;
   const parent = new Int32Array(grid.cells.length).fill(-1), seen = new Uint8Array(grid.cells.length);
@@ -243,7 +246,7 @@ function neighbors8(grid: Grid, mask: Uint8Array, p: GridPosition): GridPosition
  * shortcut is blocked, the parent falls back to the best closed neighbor.
  * Same any-angle routes as Theta*, roughly one LOS test per expansion.
  */
-function thetaStar(grid: Grid, start: GridPosition, targetExit: ExitId, mode: RoutingMode, weight: number): PathResult | null {
+function thetaStar(grid: Grid, start: GridPosition, targetExit: ExitId, mode: SearchMode, weight: number): PathResult | null {
   const target = goalsFor(grid, start, targetExit);
   if (!target) return null;
   // Euclidean distance never overestimates: every segment costs at least its length.
@@ -298,7 +301,7 @@ export function findRoute(
   grid: Grid,
   start: GridPosition,
   targetExit: ExitId,
-  mode: RoutingMode = "shortest",
+  mode: SearchMode = "shortest",
   algorithm: PathAlgorithm = "astar",
   weight: number = CONFIG.congestionWeight,
 ): PathResult | null {
@@ -311,7 +314,7 @@ export function findRoute(
   }
 }
 
-export function findBestRoute(grid: Grid, start: GridPosition, mode: RoutingMode = "shortest", algorithm: PathAlgorithm = "astar") {
+export function findBestRoute(grid: Grid, start: GridPosition, mode: SearchMode = "shortest", algorithm: PathAlgorithm = "astar") {
   let best: PathResult | null = null;
   for (const id of grid.exitIds) {
     const route = findRoute(grid, start, id, mode, algorithm);

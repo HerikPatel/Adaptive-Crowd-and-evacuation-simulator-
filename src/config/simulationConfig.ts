@@ -13,6 +13,7 @@ export const CONFIG = {
   switchRatio: 0.85,
   maxReplansPerStep: 5,
   densityInterval: 0.1,
+  flowFieldInterval: 0.5,
   densitySmoothing: 0.2,
   densitySaturation: 2.2,
   separationWeight: 1.6,
@@ -21,7 +22,10 @@ export const CONFIG = {
   maxFrameDelta: 0.1,
   maxPopulation: 1000,
 } as const;
-export type RoutingMode = "shortest" | "congestion";
+export type RoutingMode = "shortest" | "congestion" | "flow-field";
+export const ROUTING_LABELS: Record<RoutingMode, string> = {
+  shortest: "Shortest Path", congestion: "Congestion Aware", "flow-field": "Shared Flow Field",
+};
 export type MovementMode = "predictive" | "orca";
 export const MOVEMENT_LABELS: Record<MovementMode, string> = { predictive: "Predictive steering", orca: "ORCA" };
 export const EXIT_IDS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;

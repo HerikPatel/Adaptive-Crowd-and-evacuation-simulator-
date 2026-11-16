@@ -16,7 +16,7 @@ export class Experiment {
 
   begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId, running = true, movement: MovementMode = this.simulation.movementMode, algorithm: PathAlgorithm = this.simulation.algorithm) {
     // Validate before changing a running experiment.
-    if (mode !== "shortest" && mode !== "congestion") throw new Error("Unknown routing strategy");
+    if (mode !== "shortest" && mode !== "congestion" && mode !== "flow-field") throw new Error("Unknown routing strategy");
     if (movement !== "predictive" && movement !== "orca") throw new Error("Unknown local movement mode");
     if (!PATH_ALGORITHMS.includes(algorithm)) throw new Error("Unknown path-planning algorithm");
     if (scenario !== "open" && scenario !== "closure") throw new Error("Unknown scenario");
