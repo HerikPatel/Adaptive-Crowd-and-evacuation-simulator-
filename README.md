@@ -1,6 +1,22 @@
 # Adaptive Crowd and Evacuation Simulator
 
-CS 549 · Assignment 3 MVP. A browser-based, deterministic experiment in evacuation routing, local crowd avoidance, and changing exit availability. The prototype demonstrates the engineering approach from Assignment 2; it is not a validated life-safety model.
+An interactive crowd evacuation simulator for Rutgers University CS 549. Explore how building layouts, crowd composition, congestion, and exit closures affect evacuation using editable building maps and a multi-level schematic of SHI Stadium.
+
+The project's two computer graphics pillars are **Pathfinding & Navigation** (shortest-path and congestion-aware routing, with replanning when routes change) and **Collision Detection** (agent-agent and agent-wall checks with avoidance responses). Reproducible experiments support comparisons between routing and movement algorithms. This is an educational model; its geometry and behavior assumptions are not validated for real evacuation planning.
+
+## Current features
+
+| Capability | Building maps | SHI Stadium |
+| --- | --- | --- |
+| Maps | Original bottleneck and Distributed wings | Lower bowl, separate upper decks, and concourse/gates |
+| Crowd size | 1–1,000, limited by available spawn space | 1–1,000 spectators with seating presets |
+| Routing | A* Shortest Path or Congestion Aware | Free-flow Dijkstra or adaptive travel-time potentials |
+| Local movement | Predictive steering (default) or **ORCA** | Predictive passing or queue baseline; ORCA is future work |
+| Individual behavior | Seeded 0.9–1.1× speed variation | Synthetic adult profiles, response delays, body sizes, and individual overrides |
+| Editing | Draw/erase walls, add/widen up to eight exits, undo | Close connections and edit transfer assumptions |
+| Results | Evacuation times, exit use, route switches, density, and render performance | Live crowd metrics, background comparisons, charts, and CSV/statistics exports |
+
+The stadium uses a separate surface graph with explicit stairs, ramps, and transfers. Its levels advance together; selecting a layer changes the view. It is not a full 3D model.
 
 ## Run
 
@@ -18,7 +34,7 @@ npm run build
 npm run preview
 ```
 
-## MVP and controls
+## Building experiments and controls
 
 - **Building layout:** the default **Distributed wings** map is 70×42 cells (1400×840 simulation pixels), with agents spread across four wings linked by a ring and central passages. Exit A faces west, while Exit B faces south. A has a narrow bottleneck and B has a wide approach; the cheaper route depends on an agent's location and congestion.
 - The original **50×30 bottleneck** map remains available for Assignment 3 comparisons, with its shared start area and two east-facing exits. Changing layout resets the run and resizes the Canvas automatically.
@@ -26,13 +42,29 @@ npm run preview
 - **Routing strategy:** Shortest Path or Congestion Aware. Changing strategy resets the run for comparison.
 - **Local movement:** Predictive steering (default) or ORCA for both building maps. Changing movement resets the crowd for a matched comparison; results label the mode. Both share the same routing and final collision checks. See the [ORCA implementation and limitations](docs/ORCA.md).
 - **Agent population:** enter a whole number from 1 to the layout's capacity, capped at 1,000. Applying a new population resets the run.
-- **Block Exit A / Re-open Exit A** works during a run or while paused. Closing A invalidates its paths immediately and prioritizes affected agents for rerouting. Reopening makes A a candidate at the next cooldown; it does not force a switch.
+- **Exit scenario:** start with all exits open, or schedule Exit A to close at five simulation seconds. Each configured exit also has its own **Block / Re-open** button for manual experiments. Closures invalidate affected paths and prioritize rerouting; reopening makes an exit eligible at the next cooldown. A closure is rejected if it would trap a floor area or require an unsafe body relocation.
 - **Show paths / spatial hash / density values** provide optional debug overlays.
 - An animated heatmap shows local congestion below agents. Amber agents have recently changed exits. A blocked exit is red with an × marker.
 - FPS, frame time, remaining agents, elapsed time, evacuation totals, density, exit utilization, and route switches remain visible.
 - Backgrounding the page automatically pauses the simulation; press Start to resume.
 
-## SHI Stadium map study
+### Edit walls and exits
+
+Choose **Edit layout first** in setup, or choose a drawing tool during a run to pause it. Click or drag with **Draw wall**, **Erase wall**, or **Add exit**; release to apply the stroke. Select **New exit** to add an opening or an existing exit to widen it. The map supports up to eight exit labels, A–H, each with independent controls and metrics.
+
+Edits must stay inside the map boundary, preserve sufficient spawn space, and leave every floor area connected to an open exit. New walls and exits cannot overlap agents. A rejected stroke changes nothing. **Undo edit** reverses a recent stroke while paused; resuming clears undo history. **Restore original layout** restores the preset and resets the crowd. Keyboard editing uses arrow keys and Space/Enter with the canvas focused; Escape cancels a stroke.
+
+Edited layouts survive resets and map switches during the current visit. Reloading the page restores the presets. Save/load, spawn-area editing, and redo remain planned work.
+
+### Compare ORCA with predictive steering
+
+1. Choose a building map, population, routing strategy, and exit scenario. Run with **Local movement → Predictive steering** and record the results.
+2. Repeat with **Local movement → ORCA**, keeping the other settings identical. Changing movement resets the crowd with the same seed, initial positions, and speeds. Repeat any manual closures at the same simulation times.
+3. Compare evacuation time, exit use, congestion, and render performance. The results screen identifies the movement mode.
+
+ORCA (Optimal Reciprocal Collision Avoidance) chooses local velocities; A* and the congestion-aware router still choose routes. Both movement modes retain independent body, wall, and speed checks. ORCA is optional because the three latest matched dense-map cases completed more slowly than predictive steering. For example, 500 agents on Distributed wings with all exits open finished in **54.650 s with ORCA versus 40.167 s with predictive steering** (seed 549, Congestion Aware). These are simulated evacuation times, not browser performance measurements. See [implementation and attribution](docs/ORCA.md) and [validation results](docs/VALIDATION.md).
+
+## SHI Stadium simulation
 
 Choose **SHI Stadium · Schematic simulation** from the **Building layout** menu, then **Open stadium**. The same map choice in the building simulation controls pauses that run and opens the stadium. Switch between the lower bowl, separate upper decks, and concourse/gates; select a feature for source information; zoom and drag to inspect the map. The feature selector also works on mobile and with a keyboard.
 
@@ -46,19 +78,28 @@ Movement checks swept circular bodies on each surface and transfer channel. **Lo
 
 **Stadium routing** offers a fixed free-flow baseline and adaptive travel-time potentials using live corridor occupancy and transfer queues. Adaptive routing samples traffic every 2 seconds and uses committed itineraries, a cooldown and an improvement threshold to reduce route switching. Closed routes trigger recovery at nodes. The route inspector remains a free-flow reference.
 
-**Stadium experiments**, below the map, compares routing modes, uniform/individual profiles, and open/east-gate-closure scenarios with identical seeds and starting seats. Choose populations, up to three seeds, and a run limit of 60–7,200 simulated seconds. Run a background batch, inspect charts, paired differences and variability across seeds, and download results/time-series/statistics CSVs. Incomplete runs remain explicit and never count as completed evacuation times. A headless equivalent is `npm run benchmark:stadium -- --populations=100,500,1000 --seeds=549`; add `--time-limit=3600` for longer runs and `--output=docs/benchmarks/my-comparison` to preserve previous measurements. See [algorithm, experimental protocol, metrics and limitations](docs/STADIUM_EXPERIMENTS.md).
+**Stadium experiments**, below the map, compares routing modes, uniform/individual profiles, and open/east-gate-closure scenarios with identical seeds and starting seats. Choose up to three populations, up to three seeds, a movement mode, and a run limit of 60–7,200 simulated seconds. Each population/seed combination produces eight cases. Run a background batch, inspect charts, paired differences and variability across seeds, and download results/time-series/statistics CSVs. Incomplete runs remain explicit and never count as completed evacuation times.
+
+The same comparison is available from the command line. Use separate output directories to retain each batch:
+
+```sh
+npm run benchmark:stadium -- --populations=100,500 --seeds=549,550,551 --movement=passing --time-limit=3600 --output=docs/benchmarks/passing-v2
+npm run benchmark:stadium -- --populations=100,500 --seeds=549,550,551 --movement=queue --time-limit=3600 --output=docs/benchmarks/queue-v2
+```
+
+Current exports identify `stadium-movement-v2` and the selected movement mode. Existing `stadium-traffic-v1` benchmark reports are historical; they do not measure the new passing model. See [algorithm, experimental protocol, metrics and limitations](docs/STADIUM_EXPERIMENTS.md).
 
 Geometry, scale, widths, profile distributions, speeds, and transfer settings remain experimental assumptions. Route-inspection times use the reference speed without queues; live times include individual speeds, response delays and waiting. See the [map study and implementation sequence](docs/SHI_STADIUM_MAP_PLAN.md) for sources and map assumptions.
 
 ## Stack and architecture
 
-Vite, strict TypeScript, HTML/CSS, and Canvas 2D. There are no runtime packages, physics engines, runtime AI, or external pathfinding dependencies. TypeScript/tsx and Playwright are development tools only.
+Vite, strict TypeScript, HTML/CSS, Canvas 2D for buildings, and SVG for the stadium. Simulation and routing run locally in the browser; stadium experiment batches use a Web Worker. There is no backend or trained machine-learning model. The project has no npm runtime dependencies. ORCA's agent constraints and linear programs are adapted from RVO2, with [Apache-2.0 licensing](public/third-party/rvo2/LICENSE.txt) and [attribution](public/third-party/rvo2/README.txt) included in public build assets.
 
 ```text
 src/
   main.ts                    DOM shell, requestAnimationFrame, accumulator
   styles.css                 Responsive control panel and Canvas layout
-  config/simulationConfig.ts Tunable constants and routing/exit types
+  config/simulationConfig.ts Tunable constants and routing/movement/exit types
   maps/mvpMap.ts             Original bottleneck floor plan
   maps/largeMap.ts           Larger building with west/south exits
   maps/maps.ts               Layout catalog, spawn areas, and labels
@@ -66,36 +107,53 @@ src/
   maps/stadiumNavigation.ts  Assumed corridors, explicit transfers, geometry validation
   simulation/
     Simulation.ts           Seeded spawn, fixed updates, prioritized route queue
+    Experiment.ts           Setup, timed closures, reset, and results lifecycle
+    LayoutEditor.ts         Transactional wall/exit edits, validation, and undo
     Agent.ts                Continuous agent state
-    Grid.ts                 Immutable cell types plus separate density arrays
+    Grid.ts                 Layout cells, exit state, and separate density arrays
     SpatialHash.ts          Exact-radius nearby-agent queries
     Density.ts              Neighborhood density and temporal smoothing
     Metrics.ts              Evacuation records and aggregate measurements
+    PersonProfile.ts        Seeded stadium profiles and walking-speed assumptions
+    StadiumSimulation.ts    Surface movement, passing, transfers, and queues
+    StadiumExperiment.ts    Reproducible batch cases, results, and CSV output
+    StadiumStatistics.ts    Matched comparisons and variation across seeds
+    stadiumExperiment.worker.ts Background batch execution
   pathfinding/
     PriorityQueue.ts        Stable binary min-heap
     AStar.ts                Manual cardinal A* with Manhattan heuristic
     CongestionRouter.ts     Exit comparison, commitment, and hysteresis
     StadiumRouter.ts        Surface-aware Dijkstra, closures, connectivity inspection
+    StadiumTrafficRouter.ts Adaptive travel-time potentials and route commitment
   collision/
     CollisionSystem.ts      Predictive steering, joint contact solver, sweep checks
     OrcaSolver.ts           Optional reciprocal velocity constraints and linear programs
     PredictiveMotion.ts     Continuous relative-motion clearance
     StadiumCorridor.ts      Corridor width and continuous passing lanes
+    StadiumJunctions.ts     Conflict detection for nearby schematic corridors
+    DiscReservations.ts     Stadium swept-body clearance checks
   rendering/
     Renderer.ts             Map, exits, paths, agents, and debug overlays
     HeatmapRenderer.ts      Cached 10 Hz density layer
   ui/
     Controls.ts             Input bindings and metric readouts
+    Screens.ts              Building setup, simulation, and results screens
+    Editor.ts               Pointer and keyboard layout editing
     PerformanceStats.ts     Browser render cadence measurement
     StadiumViewer.ts        Interactive SVG stadium layers and feature inspection
     StadiumRoutes.ts        Route overlay, transfer settings, connectivity status
+    StadiumCrowd.ts         Crowd controls and individual profile editing
+    StadiumExperiments.ts   Batch controls, charts, and downloads
   utils/                    Vector helpers and seeded PRNG
+scripts/stadium-benchmark.ts Headless stadium batch runner
 tests/                      Unit tests, full-run scenarios, browser tests
 ```
 
-## Routing
+## Building algorithms
 
-A* explores four cardinal neighbors and uses Manhattan distance to the nearest cell of the requested exit as its admissible heuristic. Each candidate exit is searched separately, and the lowest-cost reachable candidate wins. An exit may span multiple cells; Exit B has three exit cells for a wider opening.
+### Routing
+
+A* explores four cardinal neighbors and uses Manhattan distance to the nearest cell of the requested exit as its admissible heuristic. Each candidate exit is searched separately, and the lowest-cost reachable candidate wins. An exit may span multiple contiguous cells; the editor can widen existing openings and add new exits.
 
 Shortest Path assigns cost `1` per step. Congestion Aware uses:
 
@@ -114,7 +172,7 @@ Density normalizes against 2.2 agents/m² and clamps to 0–1. At 10 Hz, both ro
 ### Oscillation and herding prevention
 
 1. Each agent has a 750 ms minimum replan cooldown plus a seeded 0–450 ms individual offset.
-2. Both routes are compared from the current position under the same smoothed density snapshot. An old whole-trip cost is never compared to a new shorter remaining trip.
+2. Candidate exit routes are compared from the current position under the same smoothed density snapshot. An old whole-trip cost is never compared to a new shorter remaining trip.
 3. Switching exits requires `newCost < currentCost × 0.85`. The selected exit remains committed otherwise. Same-exit reroutes also require meaningful improvement.
 4. Blocked/unreachable paths bypass commitment and enter the urgent queue. Waiting agents stop rather than follow a stale blocked route.
 5. At most five agents are replanned per fixed update; initial routing is batched too. No artificial equal-group assignment is used.
@@ -131,35 +189,40 @@ Circle-versus-wall checks use X/Y sliding and small movement substeps; path look
 
 The fixed timestep is 1/60 s. Seeded initial positions, speed variation (0.9–1.1×), stable A* tie-breaking, and simulation-time cooldowns make identical fixed-step input sequences reproducible. Human clicks at different simulation times produce different runs. Frame deltas are capped at 100 ms to bound catch-up work; under sustained overload simulated time may lag real time. Five replans is a **fixed-update** budget: a catch-up render can include several updates. FPS is measured separately from the deterministic state.
 
-## Metrics
+## Building metrics
 
 Times are seconds from the first simulation update; paused wall-clock time is excluded. Evacuation is recorded when the agent center enters an active exit cell. Evacuated agents leave collision and route updates.
 
 - **Total evacuation time:** time at which the final agent leaves; blank until completion.
 - **Average evacuation time:** mean departure time of agents evacuated so far.
-- **A/B last / final clear:** last observed departure through that exit while running; final time-to-clear once the complete run finishes. An unused exit shows “—”. This avoids claiming an exit has cleared while future agents could still select it.
-- **Exit switches:** actual changes between A and B, excluding initial assignments and same-exit replans.
+- **Per-exit evacuated / last / final clear:** departure count and last observed departure through each configured exit while running; final time-to-clear once the complete run finishes. An unused exit shows “—” for its time. This avoids claiming an exit has cleared while future agents could still select it.
+- **Exit switches:** actual changes between exits, excluding initial assignments and same-exit replans.
 - **Peak density:** maximum unsmoothed local agents/m² across all steps and walkable cells.
 - **FPS / frame time:** render cadence averaged over approximately 0.5 s. Frame time is the actual interval between rendered frames, not only update CPU cost.
 
-## Tests
+## Tests and validation
 
 ```sh
 npm test
+npm run build
 npm run test:browser
 ```
 
-Unit/scenario tests cover routing, hysteresis, spatial queries, simultaneous body sweeps, wall clearance, head-on encounters, touching queues, dense evacuation, live closures, deterministic reset, stadium passing/merging, and queue baselines. Large-map runs check body and wall clearance and speed budgets at every fixed step, including people exiting during that step.
+The latest recorded validation on **November 16, 2026** passed **95 unit/simulation tests**, the TypeScript/Vite production build, and **18 Chrome browser tests against the production preview**. See [validation results](docs/VALIDATION.md) for scenarios, measured outcomes, and limitations.
+
+Unit/scenario tests cover routing, hysteresis, spatial queries, ORCA velocity constraints, simultaneous body sweeps, wall clearance, head-on encounters, touching queues, dense evacuation, live closures, deterministic reset, stadium passing/merging, queue baselines, and experiment statistics. Large-map runs check body and wall clearance and speed budgets at every fixed step, including people exiting during that step.
 
 Browser tests use locally installed Chrome (`channel: 'chrome'` in `playwright.config.ts`) and start/reuse Vite on port 5174. Install Chrome or change the channel to an installed browser. Tests exercise controls, pause, dynamic closure, completion, pixel-identical reset, responsive layout, and record stress-run FPS samples. Screenshots and performance attachments go to `test-results/`.
 
-See [manual scenarios](docs/MANUAL_TESTS.md) for the assignment demo and hardware performance procedure, and [validation results](docs/VALIDATION.md) for the checks and measurements performed. Headless simulation timings do not establish browser FPS targets.
+For a local production-browser check, build first, start `npm run preview -- --port 5174 --strictPort` in one terminal, and run `npm run test:browser` in another. Ensure port 5174 is serving that preview; the tests reuse an existing server outside CI. Without a running server, Playwright starts the development server.
+
+See [manual scenarios](docs/MANUAL_TESTS.md) for the assignment demo and hardware performance procedure. Headless simulation timings do not establish browser FPS targets.
 
 ## Performance testing
 
 Target ≥30 FPS with 200 agents and ≥20 FPS with 500 agents on a mid-range laptop. These are measurement targets, not guarantees across hardware.
 
-Build and run `npm run preview`. Use a foreground browser tab at a fixed window size. Turn debug overlays off, run each population from reset, and record FPS/frame time during the crowded first 5–20 simulation seconds. Repeat with A blocked at five seconds. Record browser version, OS, CPU/GPU, window size, routing mode, and observed minimum/typical FPS. Repeat with overlays enabled separately. Use the always-visible stage readout in the demo recording. If simulated seconds lag wall time, report that alongside FPS.
+Build and run `npm run preview`. Use a foreground browser tab at a fixed window size. Turn debug overlays off, run each population from reset, and record FPS/frame time during the crowded first 5–20 simulation seconds. Repeat with A blocked at five seconds. Record browser version, OS, CPU/GPU, window size, routing and movement modes, and observed minimum/typical FPS. Repeat with overlays enabled separately. Use the always-visible stage readout in the demo recording. If simulated seconds lag wall time, report that alongside FPS. Profile stadium rendering separately from the building maps.
 
 ## Known limitations
 
@@ -170,6 +233,15 @@ Build and run `npm run preview`. Use a foreground browser tab at a fixed window 
 - Render catch-up work and debug overlays affect performance; results must be measured on the target laptop.
 - Crowd size is capped at 1,000 and limited by available spawn space. The stadium is a schematic, not a full-attendance model.
 
-## Future work
+## Remaining work and documentation
 
-Calibrated crowd models, improved anticipatory avoidance, accessible egress, and presentation-laptop profiling remain future work. The building editor and stadium comparison/CSV tools are implemented; general layout import/export and full 3D rendering remain separate extensions. See the [current status and proposed remaining work](docs/ROADMAP.md) for concrete next tasks and completion checks.
+The next implementation priority is **editor persistence**: save/load layouts and experiment settings, followed by spawn-area editing, redo, and additional building presets. Remaining validation and delivery work includes evidence for stadium geometry and behavior assumptions, matched-seed movement comparisons, presentation-laptop profiling, the final report/demo/slides, and checks of the GitHub-linked Vercel deployment and its worker/CSV flows. ORCA on stadium concourses, accessible egress, group behavior, and full 3D are further extensions.
+
+- [Future TODO](FUTURE_TODO.txt) — current priorities and unfinished work.
+- [Roadmap](docs/ROADMAP.md) — implemented features and completion criteria.
+- [ORCA](docs/ORCA.md) — velocity solver, integration choices, and attribution.
+- [Agent behavior](docs/AGENT_BEHAVIOR.md) — individual profiles and collision handling.
+- [SHI Stadium map plan](docs/SHI_STADIUM_MAP_PLAN.md) — sources, layers, and assumptions.
+- [Stadium experiments](docs/STADIUM_EXPERIMENTS.md) — comparison protocol and exported metrics.
+- [Validation](docs/VALIDATION.md) — dated test results and performance evidence.
+- [Manual tests](docs/MANUAL_TESTS.md) — repeatable demo and performance checks.
