@@ -50,10 +50,6 @@ Select **Original bottleneck** for scenarios 1–3 below. The app now defaults t
 
 ## Additional edge checks
 
-- On each building map, compare Congestion Aware with Shared Flow Field using the same population, movement mode and timed closures. Record route requests and searches/field builds alongside completion time and FPS.
-- With Shared Flow Field selected, add/widen an exit, draw/erase a wall, and undo while paused. Resume and confirm routes avoid the edited walls and use reachable exits. Close/reopen exits to check rerouting, then reset and confirm routing counters clear while the selected strategy and layout persist.
-- Combine Shared Flow Field with ORCA, complete a run, and confirm both modes appear in the results. Check settings survive a stadium visit and a map switch.
-
 - Block A before Start; only B should be selected.
 - Block/reopen while paused; the clock must not advance.
 - Change strategy/population mid-run; a clean paused reset should occur.

@@ -90,7 +90,7 @@ test("eight exits support widening, routing, blocking, and reset without losing 
   assert.deepEqual(Array.from(s.metrics.byExit.keys()), EXIT_IDS);
 });
 
-for (const mode of ["shortest", "congestion", "flow-field"] as RoutingMode[])
+for (const mode of ["shortest", "congestion"] as RoutingMode[])
   test(`${mode} evacuates a custom crowd through added exits with reproducible metrics`, () => {
     const s = new Simulation(137), editor = new LayoutEditor(s);
     s.mode = mode;

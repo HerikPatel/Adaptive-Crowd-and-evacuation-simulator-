@@ -5,7 +5,6 @@ Updated November 16, 2026. These are recommended priorities, not additional assi
 ## Implemented
 
 - Two building presets with customizable population, wall drawing/erasing, up to eight exits, connectivity validation, and undo.
-- Shared flow-field building routing: reverse Dijkstra per exit, congestion refreshes, immediate topology invalidation, and search-reuse counters. Works with predictive steering and ORCA; see [algorithm details](SHARED_FLOW_FIELD.md).
 - Multi-level schematic SHI Stadium with sections, explicit surface connections, timed/capacity-limited transfers, gates, closures, and route inspection.
 - Individual stadium profiles with reproducible speed, response delay and body size; a uniform comparison and pre-run individual overrides.
 - Stadium swept-body clearance and junction reservations, plus adaptive graph routing using observed traffic and stable route switching.
@@ -35,13 +34,9 @@ The repeated-seed summaries improve reproducibility but do not establish realism
 
 Compare building ORCA with predictive steering across layouts and closures before changing defaults. Current dense-map ORCA cases complete more slowly. Extending ORCA into stadium concourses requires a surface/corridor integration while preserving transfer capacities and landing queues.
 
-Compare shared flow fields with A* across crowd sizes and repeatable closure timings while holding local movement fixed. Measure routing work, full evacuation outcomes, and browser cadence separately; fewer searches alone do not prove better evacuation or rendering performance.
-
 ## Presentation and delivery
 
 Profile the production build on the actual presentation laptop, including 1,000-person stadium cases and mobile controls. Record render cadence and whether simulated time keeps pace with wall time; headless update timings do not answer that.
-
-The latest shared-field/ORCA samples at 500 agents were 9–15 FPS, below the 20-FPS target. A previous-build control reproduced low A* cadence on this host. Investigate dense ORCA cost and host variability before claiming sustained performance; the dated results include both batches.
 
 Prepare a short repeatable demo, a report covering assumptions and measured comparisons, and at most four slides centered on the navigation and collision-detection pillars. After the code push, check the GitHub-linked Vercel deployment and its experiment worker/CSV downloads.
 

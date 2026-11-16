@@ -539,3 +539,17 @@ progress {
     margin-top: 6px;
   }
 }
+.view-toggle { display: inline-flex; gap: 0; margin-left: auto; }
+.view-toggle button { font-size: 12px; padding: 6px 12px; border-radius: 0; }
+.view-toggle button:first-child { border-radius: 8px 0 0 8px; }
+.view-toggle button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.view-toggle [aria-pressed="true"] { background: #193c3d; border-color: #62dbc1; color: #8debd7; }
+#world3d { position: relative; }
+#world3d canvas { display: block; touch-action: none; cursor: grab; }
+#world3d canvas:active { cursor: grabbing; }
+.view3d-tools { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+.view3d-tools > * { pointer-events: auto; }
+.view3d-tools button { font-size: 12px; padding: 6px 10px; background: #101c2bd9; }
+.view3d-tools .check { margin: 0; font-size: 12px; background: #101c2bd9; padding: 6px 10px; border-radius: 8px; border: 1px solid #3a5268; display: flex; gap: 6px; align-items: center; }
+.view3d-tools span { font-size: 11px; color: #8ea4b6; margin-left: auto; background: #101c2bd9; padding: 6px 10px; border-radius: 8px; }
+#view3d-error:empty { display: none; }

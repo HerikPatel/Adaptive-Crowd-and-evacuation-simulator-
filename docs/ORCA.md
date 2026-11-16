@@ -20,7 +20,7 @@ Integration choices:
 
 ## What comparisons establish
 
-ORCA is local avoidance and works with A* or [shared flow-field routing](SHARED_FLOW_FIELD.md). Keep map, crowd, routing, closures, and seed identical when comparing movement modes. Record total/average evacuation time, exit use, stalls, body clearance and render performance. This compares complete movement pipelines: ORCA also uses the verified-clear shortcut described above. Changing local movement can change later density and route decisions even with the same routing policy.
+ORCA is local avoidance, not a replacement for A* or the congestion-aware exit chooser. Keep map, crowd, routing, closures, and seed identical when comparing movement modes. Record total/average evacuation time, exit use, stalls, body clearance and render performance. This compares complete movement pipelines: ORCA also uses the verified-clear shortcut described above. Changing local movement can change later density and route decisions even with the same routing policy.
 
 `tests/orca.test.ts` checks the velocity solver analytically, reciprocal constraints, continuous head-on clearance without contact projection, wall response, deterministic reset and full building scenarios. Browser coverage checks mode selection, reset, preserved settings, result labels and mobile layout. See [validation results](VALIDATION.md) for completed runs.
 

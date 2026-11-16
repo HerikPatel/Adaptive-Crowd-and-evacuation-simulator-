@@ -15,7 +15,7 @@ export function findPath(
   grid: Grid,
   start: GridPosition,
   targetExit: ExitId,
-  mode: Exclude<RoutingMode, "flow-field"> = "shortest",
+  mode: RoutingMode = "shortest",
   weight: number = CONFIG.congestionWeight,
 ): PathResult | null {
   const goals = grid.exits(targetExit);
@@ -63,7 +63,7 @@ export function findPath(
 export function findBestPath(
   grid: Grid,
   start: GridPosition,
-  mode: Exclude<RoutingMode, "flow-field"> = "shortest",
+  mode: RoutingMode = "shortest",
 ): PathResult | null {
   let best: PathResult | null = null;
   for (const id of grid.exitIds) {

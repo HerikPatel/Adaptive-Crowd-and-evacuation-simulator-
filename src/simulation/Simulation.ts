@@ -1,7 +1,8 @@
-import { CONFIG, type ExitId, type RoutingMode, type MovementMode } from "../config/simulationConfig";
+import { CONFIG, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { createMvpMap } from "../maps/mvpMap";
 import { MAPS, type MapId } from "../maps/maps";
 import { CongestionRouter } from "../pathfinding/CongestionRouter";
+import { lineOfSight } from "../pathfinding/algorithms";
 import { Density } from "./Density";
 import { Metrics } from "./Metrics";
 import { distance } from "../utils/Vector2";
@@ -18,6 +19,7 @@ export class Simulation {
   running = false;
   mode: RoutingMode = "congestion";
   movementMode: MovementMode = "predictive";
+  algorithm: PathAlgorithm = "astar";
   orca = new OrcaSolver();
   density = new Density();
   router = new CongestionRouter();
@@ -68,7 +70,6 @@ export class Simulation {
     this.routeSwitchCount = 0;
     this.density = new Density();
     this.orca = new OrcaSolver();
-    this.router = new CongestionRouter();
     this.metrics = new Metrics(this.agentCount, this.grid.exitIds);
     const random = seededRandom(CONFIG.seed),
       slots = this.spawnSlots(this.grid);
@@ -188,7 +189,7 @@ export class Simulation {
       a.queued = false;
       if (a.evacuated) continue;
       processed++;
-      const route = this.router.plan(a, this.grid, this.mode, this.time);
+      const route = this.router.plan(a, this.grid, this.mode, this.algorithm);
       if (route) {
         if (a.targetExit && a.targetExit !== route.targetExit) {
           this.routeSwitchCount++;
@@ -226,6 +227,13 @@ export class Simulation {
       for (let i = startIndex + 1; i < Math.min(a.path.length, startIndex + 7); i++) {
         const next = this.grid.center(a.path[i]);
         if (distance(a.position, next) <= 3 * this.grid.cellSize && this.collision.canTravel(a.position, next, a.radius, this.grid)) a.pathIndex = i;
+      }
+      // Any-angle (Theta*) routes all hug the same corners. Advance as soon as the
+      // following waypoint is in line of sight instead of crowding the exact corner point.
+      if (this.algorithm === "thetastar") {
+        const here = this.grid.cell(a.position);
+        while (a.pathIndex + 1 < a.path.length && this.grid.walkable(here.x, here.y) &&
+               lineOfSight(this.grid, here, a.path[a.pathIndex + 1])) a.pathIndex++;
       }
       const node = a.path[a.pathIndex];
       const goal = node ? this.grid.center(node) : null;

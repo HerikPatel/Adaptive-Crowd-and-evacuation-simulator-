@@ -7,14 +7,12 @@ Project progress and remaining tasks (updated November 16, 2026)
    - Movement modes recorded in experiments and CSV/statistics; regression coverage verified.
    - Optional ORCA local movement for both building maps, with matched resets and labeled results.
      Stadium ORCA remains future work; its queue/passing model is separate.
-   - Shared flow-field building routing with cached reverse Dijkstra, congestion refreshes,
-     immediate layout/exit invalidation, and routing-work counters; compatible with ORCA.
    - See docs/VALIDATION.md for test results, completion times, and local performance samples.
 
 2. Finish the editor
    - Save and load custom layouts and experiment settings using a validated, versioned format.
    - Add spawn-area editing and redo.
-   - Add more presets such as an office, classroom corridor, and auditorium.
+   - Presets added: lecture hall, classroom corridor, open-plan office, dining hall, library.
 
 3. Improve realism
    - Validate stadium dimensions, corridor/gate widths, and transfer capacities against permitted plans or observations.
@@ -25,17 +23,13 @@ Project progress and remaining tasks (updated November 16, 2026)
    - Compare building ORCA against predictive steering across layouts, closures and seeds.
      Current dense-map ORCA cases finish more slowly; tune only with repeatable evidence.
    - Investigate ORCA on stadium concourses while retaining explicit transfer/landing queues.
-   - Broaden shared flow-field vs A* comparisons across crowd sizes, seeds and closures,
-     holding local movement fixed; measure routing CPU cost and browser FPS separately.
 
 4. Prepare delivery
-   - Investigate dense ORCA render cost: the latest 500-person shared-field samples were
-     9-15 FPS, below the 20-FPS target. A previous-build control also reproduced low
-     A* cadence on this host; see docs/VALIDATION.md before comparing old benchmarks.
    - Profile the production build on the presentation laptop, including dense stadium runs.
    - Finalize the demo, report, and up to four slides on navigation and collision detection.
    - Check the GitHub-linked Vercel deployment after the code push.
    - Verify deployed experiment workers and CSV downloads.
 
-Optional extensions: full 3D, stress/panic, group behavior, accessible egress, and learned policies.
+Done: 3D view of the building maps (three.js) and selectable path planners (A*, Theta*/T*, Dijkstra, greedy, BFS).
+Optional extensions: 3D stadium view, stress/panic, group behavior, accessible egress, and learned policies.
 Next implementation priority: finish the editor (priority 2).
