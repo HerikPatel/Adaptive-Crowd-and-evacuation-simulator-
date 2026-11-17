@@ -97,3 +97,16 @@ test("returning to setup stops a run and starting again applies fresh settings",
   steps(e, 310);
   assert.equal(e.simulation.grid.exitABlocked, false);
 });
+
+test("a busy doorway delays the scheduled closure instead of skipping it", () => {
+  // Shortest Path keeps a steady stream in Exit A's doorway at the 5 s mark.
+  const e = new Experiment();
+  e.begin(300, "shortest", "closure", "large", true, "predictive", "astar");
+  while (e.screen === "simulation" && e.simulation.time < 10) e.update(1 / 60);
+  assert.equal(e.closureTriggered, true);
+  assert.equal(e.closureMessage, "");
+  assert.equal(e.simulation.grid.exitABlocked, true);
+  assert.ok(e.closureTime! >= 5 && e.closureTime! < 10, `closed at ${e.closureTime}`);
+  e.restart();
+  assert.equal(e.closureTime, null);
+});

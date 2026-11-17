@@ -116,7 +116,8 @@ export class Simulation {
   setExitABlocked(blocked: boolean) {
     return this.setExitBlocked("A", blocked);
   }
-  setExitBlocked(id: ExitId, blocked: boolean): { ok: boolean; message: string } {
+  /** `retry` marks a temporary refusal (someone is in the doorway) that may succeed a moment later. */
+  setExitBlocked(id: ExitId, blocked: boolean): { ok: boolean; message: string; retry?: boolean } {
     if (!this.grid.exitIds.includes(id)) return { ok: false, message: `Exit ${id} does not exist.` };
     if (blocked === this.grid.blockedExits.has(id)) return { ok: true, message: "" };
     const candidate = this.grid.cloneLayout();
@@ -131,7 +132,7 @@ export class Simulation {
         const fits = (p: { x: number; y: number }) => this.agents.every(b => b === a || b.evacuated || distance(p, relocated.get(b.id) ?? b.position) >= a.radius + b.radius + 0.02);
         const p = this.collision.resolveDoorClosure(a.position, a.radius, candidate, fits);
         if (this.collision.intersectsWall(p, a.radius, candidate) || !fits(p))
-          return { ok: false, message: "An agent is in this doorway. Try again after it moves." };
+          return { ok: false, retry: true, message: "An agent is in this doorway. Try again after it moves." };
         relocated.set(a.id, p);
       }
     }

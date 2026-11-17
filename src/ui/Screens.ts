@@ -100,7 +100,7 @@ export class Screens {
       const m = s.metrics;
       const seconds = (value: number | null) => value === null ? "Unused" : `${value.toFixed(2)} s`;
       const scenario = e.scenario === "closure"
-        ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? "Exit A closed at 5 s" : "Finished before scheduled closure"
+        ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? `Exit A closed at ${(e.closureTime ?? 5).toFixed(1)} s` : "Finished before scheduled closure"
         : "All exits initially open";
       document.querySelector("#result-context")!.textContent =
         `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${ROUTING_LABELS[s.mode]}${s.mode === "flow-field" ? "" : ` · ${ALGORITHM_LABELS[s.algorithm]}`} · ${MOVEMENT_LABELS[s.movementMode]} · ${scenario}`;

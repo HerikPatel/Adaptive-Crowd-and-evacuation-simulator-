@@ -12,6 +12,8 @@ export class Experiment {
   scenario: Scenario = "open";
   closureTriggered = false;
   closureMessage = "";
+  /** Simulation time when Exit A actually closed; later than 5 s if the doorway was busy. */
+  closureTime: number | null = null;
   revision = 0;
 
   begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId, running = true, movement: MovementMode = this.simulation.movementMode, algorithm: PathAlgorithm = this.simulation.algorithm) {
@@ -35,6 +37,7 @@ export class Experiment {
     this.simulation.reset();
     this.closureTriggered = false;
     this.closureMessage = "";
+    this.closureTime = null;
     this.screen = "simulation";
     this.simulation.running = running;
     this.revision++;
@@ -70,8 +73,12 @@ export class Experiment {
     // Apply before step 301, matching the existing five-second closure scenario.
     if (this.scenario === "closure" && !this.closureTriggered && s.time + 1e-9 >= 5) {
       const result = s.setExitABlocked(true);
-      this.closureMessage = result.ok ? "" : result.message;
-      this.closureTriggered = true;
+      // Someone in the doorway only delays the closure: retry every step until it is clear.
+      if (!result.retry) {
+        this.closureMessage = result.ok ? "" : result.message;
+        this.closureTriggered = true;
+        if (result.ok) this.closureTime = s.time;
+      }
     }
     s.update(dt);
     if (s.metrics.remainingAgents === 0) this.screen = "results";
