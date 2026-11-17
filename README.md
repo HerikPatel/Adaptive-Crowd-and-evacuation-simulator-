@@ -37,9 +37,19 @@ npm run preview
 ## Building experiments and controls
 
 - **Building layout:** the default **Distributed wings** map is 70×42 cells (1400×840 simulation pixels), with agents spread across four wings linked by a ring and central passages. Exit A faces west, while Exit B faces south. A has a narrow bottleneck and B has a wide approach; the cheaper route depends on an agent's location and congestion.
+- **Campus building layouts:** five more presets, each with three or four exits so closures force real rerouting:
+  - **Lecture hall · 60×40:** seat rows with side and centre aisles, a single front-left door (A), a double front-right door (B) and two rear doors (C, D).
+  - **Classroom corridor · 70×32:** ten classrooms on a 4 m corridor, a narrow west stair (A), a wide east stair (B) and a south lobby (C).
+  - **Open-plan office · 64×40:** desk islands, two meeting rooms and a central lift/restroom core that is not used for evacuation, with three stair exits.
+  - **Dining hall · 66×42:** table grid and serving counter, a 10 m main entrance (B), a narrow west door (A) and an east patio door (C).
+  - **Library stacks · 64×40:** long shelving rows, a main aisle and a reading room, with a main entrance (A), a fire exit (B) and a staff door (C).
+
+  These are schematic building types, not surveyed Rutgers floor plans. Every layout keeps all floor connected to an open exit when Exit A closes, so the closure scenario works on all of them. Every layout works with every algorithm, in 2D and in 3D, and with the layout editor.
 - The original **50×30 bottleneck** map remains available for Assignment 3 comparisons, with its shared start area and two east-facing exits. Changing layout resets the run and resizes the Canvas automatically.
 - **Start / Pause / Reset** control the simulation. Reset restores seed 549, positions, speeds, exits, paths, density, queue, metrics, and timer. It retains the selected layout, population, routing strategy and local movement mode. Positions are reproducible within each layout.
 - **Routing strategy:** Shortest Path, Congestion Aware, or Shared Flow Field. Shared fields reuse congestion-aware cost/direction maps across agents. Changing strategy resets the run for comparison.
+- **Path-planning algorithm:** A* (default), Theta* / T* (any-angle), Dijkstra, Greedy best-first, or Breadth-first search. Used by Shortest Path and Congestion Aware routing (Shared Flow Field builds its own per-exit fields); changing it resets the run. See [Path-planning algorithms](#path-planning-algorithms).
+- **2D plan / 3D view:** the toggle above the map switches between the Canvas floor plan and a three.js 3D view of the same run. Drag to orbit, scroll to zoom, right-drag to pan; **Reset camera**, **Top-down** and **Full-height walls** sit on the 3D view. Walls default to 1.1 m cutaway height so the crowd stays visible. The heatmap, exits, blocked doors, rerouting colors and **Show paths** all appear in 3D. Choosing a drawing tool switches back to 2D for editing.
 - **Local movement:** Predictive steering (default) or ORCA for both building maps. Changing movement resets the crowd for a matched comparison; results label the mode. Both share the same routing and final collision checks. See the [ORCA implementation and limitations](docs/ORCA.md).
 - **Agent population:** enter a whole number from 1 to the layout's capacity, capped at 1,000. Applying a new population resets the run.
 - **Exit scenario:** start with all exits open, or schedule Exit A to close at five simulation seconds. Each configured exit also has its own **Block / Re-open** button for manual experiments. Closures invalidate affected paths and prioritize rerouting; reopening makes an exit eligible at the next cooldown. A closure is rejected if it would trap a floor area or require an unsafe body relocation.
@@ -97,7 +107,7 @@ Geometry, scale, widths, profile distributions, speeds, and transfer settings re
 
 ## Stack and architecture
 
-Vite, strict TypeScript, HTML/CSS, Canvas 2D for buildings, and SVG for the stadium. Simulation and routing run locally in the browser; stadium experiment batches use a Web Worker. There is no backend or trained machine-learning model. The project has no npm runtime dependencies. ORCA's agent constraints and linear programs are adapted from RVO2, with [Apache-2.0 licensing](public/third-party/rvo2/LICENSE.txt) and [attribution](public/third-party/rvo2/README.txt) included in public build assets.
+Vite, strict TypeScript, HTML/CSS, Canvas 2D for buildings, three.js for the optional building 3D view (loaded only when 3D is opened), and SVG for the stadium. Simulation and routing run locally in the browser; stadium experiment batches use a Web Worker. There is no backend or trained machine-learning model. three.js is the only npm runtime dependency. ORCA's agent constraints and linear programs are adapted from RVO2, with [Apache-2.0 licensing](public/third-party/rvo2/LICENSE.txt) and [attribution](public/third-party/rvo2/README.txt) included in public build assets.
 
 ```text
 src/
@@ -107,6 +117,7 @@ src/
   maps/mvpMap.ts             Original bottleneck floor plan
   maps/largeMap.ts           Larger building with west/south exits
   maps/maps.ts               Layout catalog, spawn areas, and labels
+  maps/campusMaps.ts         Lecture hall, classroom corridor, office, dining hall, library
   maps/stadium.ts            Schematic stadium surfaces, sections, gates, evidence
   maps/stadiumNavigation.ts  Assumed corridors, explicit transfers, geometry validation
   simulation/
@@ -126,6 +137,7 @@ src/
   pathfinding/
     PriorityQueue.ts        Stable binary min-heap
     AStar.ts                Manual cardinal A* with Manhattan heuristic
+    algorithms.ts           Theta*, Dijkstra, greedy best-first, BFS, line of sight
     CongestionRouter.ts     Exit comparison, commitment, and hysteresis
     SharedFlowField.ts      Shared reverse Dijkstra costs and successor directions
     StadiumRouter.ts        Surface-aware Dijkstra, closures, connectivity inspection
@@ -139,6 +151,7 @@ src/
     DiscReservations.ts     Stadium swept-body clearance checks
   rendering/
     Renderer.ts             Map, exits, paths, agents, and debug overlays
+    Renderer3D.ts           three.js view: extruded walls, floor heatmap, agents
     HeatmapRenderer.ts      Cached 10 Hz density layer
   ui/
     Controls.ts             Input bindings and metric readouts
@@ -159,6 +172,20 @@ tests/                      Unit tests, full-run scenarios, browser tests
 ### Routing
 
 A* explores four cardinal neighbors and uses Manhattan distance to the nearest cell of the requested exit as its admissible heuristic. Each candidate exit is searched separately, and the lowest-cost reachable candidate wins. An exit may span multiple contiguous cells; the editor can widen existing openings and add new exits.
+
+### Path-planning algorithms
+
+The selected algorithm searches from the agent's cell to each open exit; the cheapest reachable exit wins. Every algorithm uses the same cost model (below) and the same commitment/hysteresis rules, so runs can be compared directly.
+
+| Algorithm | Neighbors | Priority | Optimal? | Notes |
+|---|---|---|---|---|
+| A* | 4-way | g + Manhattan h | Yes | Original planner; paths follow cell edges. |
+| Theta* / T* | 8-way, any angle | g + Euclidean h | Near-optimal any-angle | Lazy Theta*: a node may link straight to its grandparent when a person-sized circle (agent radius + 1 px) has clear line of sight. Exact capsule-vs-wall test, cached per layout revision. Diagonals never cut corners. Segment cost = length × (1 + w × mean density along the segment). |
+| Dijkstra | 4-way | g | Yes | A* with h = 0; same costs as A*, explores more cells. |
+| Greedy best-first | 4-way | Manhattan h | No | Fastest search; can choose longer or more crowded routes. |
+| Breadth-first search | 4-way | FIFO | Fewest steps | Ignores congestion while searching; the found route is still costed with it for exit comparison. |
+
+On the 70 × 42 map, one plan across both exits takes about 0.2 ms (greedy), 0.5 ms (A*), 0.7 ms (BFS), 1 ms (Dijkstra) and 2 ms (Theta*) in Node. Theta* routes are never longer than A* on either map (checked from every cell to every exit in `tests/algorithms.test.ts`).
 
 Shortest Path assigns cost `1` per step. Congestion Aware uses:
 

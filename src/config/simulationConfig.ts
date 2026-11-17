@@ -30,3 +30,19 @@ export type MovementMode = "predictive" | "orca";
 export const MOVEMENT_LABELS: Record<MovementMode, string> = { predictive: "Predictive steering", orca: "ORCA" };
 export const EXIT_IDS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
 export type ExitId = (typeof EXIT_IDS)[number];
+export type PathAlgorithm = "astar" | "thetastar" | "dijkstra" | "greedy" | "bfs";
+export const PATH_ALGORITHMS: PathAlgorithm[] = ["astar", "thetastar", "dijkstra", "greedy", "bfs"];
+export const ALGORITHM_LABELS: Record<PathAlgorithm, string> = {
+  astar: "A* (4-way grid)",
+  thetastar: "Theta* / T* (any-angle)",
+  dijkstra: "Dijkstra",
+  greedy: "Greedy best-first",
+  bfs: "Breadth-first search",
+};
+export const ALGORITHM_HELP: Record<PathAlgorithm, string> = {
+  astar: "Optimal 4-way grid search guided by Manhattan distance. Paths follow cell edges.",
+  thetastar: "Any-angle A*: skips cells when a person-sized body has line of sight, giving straight diagonal routes.",
+  dijkstra: "Optimal uniform-cost search with no heuristic. Same routes as A*, more cells explored.",
+  greedy: "Heads toward the nearest exit cell first. Fast but can choose longer routes.",
+  bfs: "Fewest grid steps. Ignores congestion while searching; the chosen route is still costed with it.",
+};

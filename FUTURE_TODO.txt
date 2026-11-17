@@ -14,7 +14,7 @@ Project progress and remaining tasks (updated November 16, 2026)
 2. Finish the editor
    - Save and load custom layouts and experiment settings using a validated, versioned format.
    - Add spawn-area editing and redo.
-   - Add more presets such as an office, classroom corridor, and auditorium.
+   - Presets added: lecture hall, classroom corridor, open-plan office, dining hall, library.
 
 3. Improve realism
    - Validate stadium dimensions, corridor/gate widths, and transfer capacities against permitted plans or observations.
@@ -37,5 +37,6 @@ Project progress and remaining tasks (updated November 16, 2026)
    - Check the GitHub-linked Vercel deployment after the code push.
    - Verify deployed experiment workers and CSV downloads.
 
-Optional extensions: full 3D, stress/panic, group behavior, accessible egress, and learned policies.
+Done: 3D view of the building maps (three.js) and selectable path planners (A*, Theta*/T*, Dijkstra, greedy, BFS).
+Optional extensions: 3D stadium view, stress/panic, group behavior, accessible egress, and learned policies.
 Next implementation priority: finish the editor (priority 2).

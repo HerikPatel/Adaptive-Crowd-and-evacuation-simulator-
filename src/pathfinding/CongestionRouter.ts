@@ -1,7 +1,8 @@
-import { CONFIG, type RoutingMode } from "../config/simulationConfig";
+import { CONFIG, type PathAlgorithm, type RoutingMode } from "../config/simulationConfig";
 import type { Agent } from "../simulation/Agent";
 import { Grid } from "../simulation/Grid";
-import { findPath, type PathResult } from "./AStar";
+import type { PathResult } from "./AStar";
+import { findRoute, lineOfSight, routeCost } from "./algorithms";
 import { SharedFlowFields, traceFlowField } from "./SharedFlowField";
 
 interface Candidate extends Pick<PathResult, "totalCost" | "targetExit"> {
@@ -20,7 +21,7 @@ export class CongestionRouter {
   private aStarSearches = 0;
   get searches() { return this.aStarSearches + this.flowFields.builds; }
 
-  plan(agent: Agent, grid: Grid, mode: RoutingMode, time = 0): PathResult | null {
+  plan(agent: Agent, grid: Grid, mode: RoutingMode, time = 0, algorithm: PathAlgorithm = "astar"): PathResult | null {
     this.requests++;
     const start = grid.cell(agent.position);
     if (!grid.walkable(start.x, start.y)) return null;
@@ -34,7 +35,7 @@ export class CongestionRouter {
         if (Number.isFinite(totalCost)) routes.push({ targetExit: id, totalCost, trace: () => traceFlowField(field, start) });
       } else {
         this.aStarSearches++;
-        const route = findPath(grid, start, id, mode);
+        const route = findRoute(grid, start, id, mode, algorithm);
         if (route) routes.push({ ...route, trace: () => route });
       }
     }
@@ -45,7 +46,10 @@ export class CongestionRouter {
     const incumbent = routes.find((route) => route.targetExit === agent.targetExit);
     const remaining = agent.path.slice(agent.pathIndex);
     const valid =
-      remaining.length > 0 && remaining.every((p) => grid.walkable(p.x, p.y));
+      remaining.length > 0 && remaining.every((p) => grid.walkable(p.x, p.y)) &&
+      // Any-angle waypoints are far apart: if the crowd pushed this agent off its
+      // line, the straight segment to the next waypoint may now clip a corner.
+      (mode === "flow-field" || algorithm !== "thetastar" || lineOfSight(grid, start, remaining[0]));
     if (!incumbent || !valid) return best.trace();
     // Compare all exits from the CURRENT position against the SAME density snapshot.
     // Comparing to lastPathCost would compare a whole old trip with a shorter new trip.
@@ -56,15 +60,9 @@ export class CongestionRouter {
     )
       return best.trace();
     // Within the committed route, also avoid constantly dragging agents back to centers.
-    const remainingCost = remaining.reduce(
-      (cost, p) =>
-        cost +
-        (mode === "flow-field" ? this.flowFields.stepCost(p) : 1 +
-        (mode === "congestion"
-          ? CONFIG.congestionWeight * grid.density[grid.index(p.x, p.y)]
-          : 0)),
-      0,
-    );
+    const remainingCost = mode === "flow-field"
+      ? remaining.reduce((cost, p) => cost + this.flowFields.stepCost(p), 0)
+      : routeCost(grid, start, remaining, mode, algorithm);
     if (
       shouldSwitch(incumbent.totalCost, remainingCost) &&
       remaining.length > 2

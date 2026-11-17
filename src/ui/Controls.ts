@@ -1,9 +1,9 @@
 import { Experiment } from "../simulation/Experiment";
 import type { Grid } from "../simulation/Grid";
-import type { ExitId, RoutingMode, MovementMode } from "../config/simulationConfig";
+import { PATH_ALGORITHMS, ALGORITHM_LABELS, ALGORITHM_HELP, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
-import { MAP_CHOICES, type MapChoiceId } from "../maps/maps";
+import { MAPS, MAP_CHOICES, type MapChoiceId } from "../maps/maps";
 
 export class Controls {
   private values = new Map<string, HTMLElement>();
@@ -14,6 +14,7 @@ export class Controls {
       <label for="map">Building layout</label><select id="map">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
       <p class="note" id="map-description"></p>
       <label for="routing">Routing strategy</label><select id="routing" aria-describedby="routing-control-help"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option><option value="flow-field">Shared Flow Field</option></select><p id="routing-control-help" class="field-help">Shared Flow Field reuses congestion-aware routes across the crowd. Changing routing resets the run.</p>
+      <label for="algorithm">Path-planning algorithm</label><select id="algorithm" aria-describedby="algorithm-help">${PATH_ALGORITHMS.map(id => `<option value="${id}">${ALGORITHM_LABELS[id]}</option>`).join("")}</select><p class="field-help" id="algorithm-help"></p>
       <label for="movement">Local movement</label><select id="movement" aria-describedby="local-movement-help"><option value="predictive">Predictive steering</option><option value="orca">ORCA</option></select><p class="field-help" id="local-movement-help">Changing movement resets the crowd for comparison. Routing stays independently selectable.</p>
       <form id="population-form"><label for="population">Agent population</label><input id="population" type="number" min="1" step="1" required aria-describedby="population-help"><p class="field-help" id="population-help"></p><button type="submit" class="menu-button">Apply crowd size</button></form>
       <p class="error" id="control-error" role="alert"></p>
@@ -29,6 +30,7 @@ export class Controls {
     this.syncSettings();
     document.querySelector("#routing")!.addEventListener("change", () => this.configure());
     document.querySelector("#movement")!.addEventListener("change", () => this.configure());
+    document.querySelector("#algorithm")!.addEventListener("change", () => this.configure());
     document.querySelector("#map")!.addEventListener("change", () => this.configure());
     document.querySelector("#population-form")!.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -67,6 +69,12 @@ export class Controls {
     document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
     document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
     document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
+    document.querySelector<HTMLSelectElement>("#algorithm")!.value = s.algorithm;
+    const flowField = s.mode === "flow-field";
+    document.querySelector<HTMLSelectElement>("#algorithm")!.disabled = flowField;
+    document.querySelector("#algorithm-help")!.textContent = flowField
+      ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
+      : ALGORITHM_HELP[s.algorithm];
     document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
   }
   private configure(count = this.experiment.simulation.agentCount) {
@@ -81,7 +89,8 @@ export class Controls {
       this.experiment.begin(count,
         document.querySelector<HTMLSelectElement>("#routing")!.value as RoutingMode,
         this.experiment.scenario,
-        mapId, false, document.querySelector<HTMLSelectElement>("#movement")!.value as MovementMode);
+        mapId, false, document.querySelector<HTMLSelectElement>("#movement")!.value as MovementMode,
+        document.querySelector<HTMLSelectElement>("#algorithm")!.value as PathAlgorithm);
       message.textContent = "";
     } catch (error) {
       message.textContent = (error as Error).message;
@@ -96,9 +105,7 @@ export class Controls {
       document.querySelector<HTMLInputElement>("#population")!.max = String(limit);
       document.querySelector("#population-help")!.textContent = `Enter 1–${limit} agents. Capacity depends on the layout's available spawn space.`;
       document.querySelector("#exit-message")!.textContent = "";
-      document.querySelector("#map-description")!.textContent = s.mapId === "large"
-        ? "Agents start across four wings. The original exits face west and south."
-        : "Bottleneck experiment with a shared start area.";
+      document.querySelector("#map-description")!.textContent = MAPS[s.mapId].description;
     }
     const ids = s.grid.exitIds, signature = ids.join(",");
     if (signature !== this.exitSignature) {
