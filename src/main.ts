@@ -9,6 +9,7 @@ import { MAPS, MAP_CHOICES } from "./maps/maps";
 import { Editor } from "./ui/Editor";
 import { StadiumViewer } from "./ui/StadiumViewer";
 import type { Renderer3D } from "./rendering/Renderer3D";
+import { BuildingComparisonPanel } from "./ui/BuildingComparisonPanel";
 document.querySelector<HTMLDivElement>("#app")!.innerHTML =
   `<header><span class="eyebrow">CS 549 / ASSIGNMENT 04 · ALPHA</span><h1>Evacuation Lab<span>Adaptive crowd simulation</span></h1><p>Explore how route choice changes when a crowd meets a bottleneck.</p></header>
   <section id="menu-screen" class="screen-card" aria-labelledby="menu-heading">
@@ -30,7 +31,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML =
   <section id="stadium-screen" hidden aria-labelledby="stadium-heading"></section>
   <main id="simulation-screen" hidden><section class="stage" aria-labelledby="simulation-heading"><div class="stage-bar"><strong id="simulation-heading" tabindex="-1">02 / Building overview</strong><span id="status" role="status">Ready</span><span id="performance"></span><div class="view-toggle" role="group" aria-label="View mode"><button type="button" data-view="2d" aria-pressed="true">2D plan</button><button type="button" data-view="3d" aria-pressed="false">3D view</button></div></div>
   <div class="run-progress"><span id="scenario-status"></span><label for="evacuation-progress">Evacuated <span id="progress-label">0 / 100</span></label><progress id="evacuation-progress" max="100" value="0"></progress></div>
-  <div id="editor"></div><canvas id="world" width="1000" height="600" tabindex="0" aria-label="Crowd evacuation simulation and layout editor" aria-describedby="editor-help"></canvas><div id="world3d" hidden><div class="view3d-tools"><button type="button" id="view3d-reset">Reset camera</button><button type="button" id="view3d-top">Top-down</button><label class="check"><input type="checkbox" id="view3d-walls"> Full-height walls</label><span>Drag to orbit · Scroll to zoom · Right-drag to pan</span></div><p id="view3d-error" class="error" role="alert"></p></div><div class="legend"><span>● Active agent</span><span>● Rerouting</span><span class="gradient"></span> Low → High congestion</div></section><aside><h2>Experiment controls</h2><div id="controls"></div><button type="button" data-menu class="menu-button">Back to setup</button><p class="field-help">Edited layouts stay available during this visit. Reloading the page restores the presets.</p><h2>Live measurements</h2><div id="metrics"></div><div id="exit-metrics"></div></aside></main>
+  <div id="editor"></div><canvas id="world" width="1000" height="600" tabindex="0" aria-label="Crowd evacuation simulation and layout editor" aria-describedby="editor-help"></canvas><div id="world3d" hidden><div class="view3d-tools"><button type="button" id="view3d-reset">Reset camera</button><button type="button" id="view3d-top">Top-down</button><label class="check"><input type="checkbox" id="view3d-walls"> Full-height walls</label><span>Drag to orbit · Scroll to zoom · Right-drag to pan</span></div><p id="view3d-error" class="error" role="alert"></p></div><div class="legend"><span>● Active agent</span><span>● Rerouting</span><span class="gradient"></span> Low → High congestion</div><div id="building-comparison"></div></section><aside><h2>Experiment controls</h2><div id="controls"></div><button type="button" data-menu class="menu-button">Back to setup</button><p class="field-help">Edited layouts stay available during this visit. Reloading the page restores the presets.</p><h2>Live measurements</h2><div id="metrics"></div><div id="exit-metrics"></div></aside></main>
   <section id="results-screen" class="screen-card results" hidden aria-labelledby="results-heading"><span class="eyebrow">03 / RESULTS</span><h2 id="results-heading" tabindex="-1">Evacuation complete</h2><p id="result-context"></p>
   <div class="result-grid">${[["evacuated", "Agents evacuated"], ["total", "Total evacuation time"], ["average", "Average evacuation time"], ["peak", "Peak density"], ["switches", "Exit switches"]].map(([id, label]) => `<div class="metric"><span>${label}</span><strong id="result-${id}">—</strong></div>`).join("")}</div><div id="result-exits" class="result-grid"></div>
   <p>Run again with the same settings, or return to setup to compare a different strategy. Manual exit changes must be repeated at the same simulation times for an identical result.</p><div class="result-actions"><button id="run-again" class="primary">Run again</button><button data-menu>New experiment</button></div></section>
@@ -80,6 +81,7 @@ document.querySelector("#editor")!.addEventListener("click", (event) => {
   const tool = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tool]");
   if (tool && tool.dataset.tool !== "inspect" && view === "3d") setView("2d");
 });
+const comparison = new BuildingComparisonPanel(document.querySelector<HTMLElement>("#building-comparison")!, experiment);
 let revision = experiment.revision;
 let last: number | null = null,
   accumulator = 0,
@@ -88,6 +90,7 @@ function frame(now: number) {
   // Starts, resets, and resumes discard time from the previous application state.
   if (revision !== experiment.revision) {
     revision = experiment.revision;
+    comparison.summarize();
     accumulator = 0;
     last = null;
     uiElapsed = 0.1;

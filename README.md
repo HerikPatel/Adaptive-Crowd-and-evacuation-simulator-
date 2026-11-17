@@ -64,6 +64,8 @@ Choose **Edit layout first** in setup, or choose a drawing tool during a run to 
 
 **Place furniture** adds tables, desks or shelves: they block walking like walls, every planner routes around them, and the 3D view draws them as table-height blocks. **Erase wall** also removes furniture. **Paint start zone** marks where people start: once any zone exists, the crowd starts only inside start zones instead of the map's preset areas, and **Erase start zone** removes zone cells (erasing all of them returns to the presets). Zones go on open floor only. A zone change resets the crowd into the zones; if the zones hold fewer people than the crowd size you chose, the crowd shrinks to fit and grows back as you paint more zone.
 
+**Compare strategies** (below the map) runs the current layout, including edits, once for each chosen routing strategy and path-planning algorithm, with the same crowd size, exit scenario, local movement and starting positions (seed 549), so differences come from routing alone. Shared Flow Field runs once, since it does no per-person search. Runs happen in a background worker with a progress bar and Cancel; results appear as fastest-first bars and a table (evacuated, total and mean time, people per exit, route switches, when Exit A actually closed), and **Download results CSV** saves one row per run.
+
 **Save layout** downloads the current layout as a small JSON file (`evacuation-lab-<map>-layout.json`, one text row per grid row: `#` wall, `.` floor, `o` furniture, `A`–`H` exits, plus a `startZones` grid with `S` cells when zones are painted). **Load layout** opens a saved file, switches to its map if needed and resets the crowd on it. Files are checked before use: wrong map size, unknown cells, floor on the outer edge, split exits, cut-off areas or no spawn space are rejected with a message, and the current layout is left unchanged.
 
 Edits must stay inside the map boundary, preserve sufficient spawn space, and leave every floor area connected to an open exit. New walls and exits cannot overlap agents. A rejected stroke changes nothing. **Undo edit** reverses a recent stroke while paused; resuming clears undo history. **Restore original layout** restores the preset and resets the crowd. Keyboard editing uses arrow keys and Space/Enter with the canvas focused; Escape cancels a stroke.
@@ -129,6 +131,8 @@ src/
     Experiment.ts           Setup, timed closures, reset, and results lifecycle
     LayoutEditor.ts         Transactional wall/exit/furniture/start-zone edits, validation, and undo
     LayoutFile.ts           Save/load format for custom layouts, with validation
+    BuildingComparison.ts   Matched-seed strategy comparisons and CSV export for building maps
+    buildingComparison.worker.ts  Runs comparisons off the main thread
     Agent.ts                Continuous agent state
     Grid.ts                 Layout cells, exit state, and separate density arrays
     SpatialHash.ts          Exact-radius nearby-agent queries

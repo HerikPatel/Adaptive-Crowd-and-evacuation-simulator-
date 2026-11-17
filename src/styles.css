@@ -554,3 +554,18 @@ progress {
 .view3d-tools .check { margin: 0; font-size: 12px; background: #101c2bd9; padding: 6px 10px; border-radius: 8px; border: 1px solid #3a5268; display: flex; gap: 6px; align-items: center; }
 .view3d-tools span { font-size: 11px; color: #8ea4b6; margin-left: auto; background: #101c2bd9; padding: 6px 10px; border-radius: 8px; }
 #view3d-error:empty { display: none; }
+#building-comparison { margin-top: 16px; }
+.comparison-panel { border: 1px solid #263747; border-radius: 10px; padding: 0 16px; background: #0f1a27; }
+.comparison-panel[open] { padding-bottom: 16px; }
+.comparison-panel summary { cursor: pointer; padding: 14px 0; list-style-position: inside; }
+.comparison-panel summary span { color: #8ea4b6; font-size: 12px; margin-left: 6px; }
+.comparison-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border: 0; padding: 0; margin: 12px 0; min-width: 0; }
+.comparison-form fieldset.checks { border: 1px solid #263747; border-radius: 8px; padding: 8px 12px; margin: 0; display: grid; gap: 4px; }
+.comparison-form legend { font-size: 12px; color: #afc2d1; padding: 0 4px; }
+.comparison-form .check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.comparison-form input[type="number"] { width: 100%; padding: 11px 12px; border: 1px solid #30495c; border-radius: 6px; background: #1b2e40; color: #dce7ed; font: inherit; }
+.comparison-submit { display: flex; align-items: end; }
+#comparison-progress { width: 100%; }
+.stadium-result-bar i.best { background: #46bba5; }
+.stadium-result-bar i.timeout { background: #ef735c; }
+@media (max-width: 550px) { .comparison-form { grid-template-columns: 1fr; } }
