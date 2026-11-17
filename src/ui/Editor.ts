@@ -1,6 +1,8 @@
 import { Experiment } from "../simulation/Experiment";
 import { LayoutEditor, type EditTool, type EditResult } from "../simulation/LayoutEditor";
 import type { ExitId } from "../config/simulationConfig";
+import { MAPS } from "../maps/maps";
+import { parseLayout, serializeLayout } from "../simulation/LayoutFile";
 import type { GridPosition } from "../utils/Vector2";
 
 /** Canvas coordinates are converted from CSS pixels so editing also works on small screens. */
@@ -24,7 +26,8 @@ export class Editor {
         <button data-tool="inspect" aria-pressed="true">Inspect</button><button data-tool="wall" aria-pressed="false">Draw wall</button><button data-tool="floor" aria-pressed="false">Erase wall</button><button data-tool="exit" aria-pressed="false">Add exit</button>
       </div>
       <div class="editor-actions"><div><label for="editor-exit">Exit to place</label><select id="editor-exit"><option value="new">New exit</option></select></div><button id="undo-edit">Undo edit</button><button id="restore-layout">Restore original layout</button></div>
-      <p id="editor-help" class="field-help">Choose a tool to pause. Click or drag across cells; release to apply. Add exits in clear floor or wall cells; select an existing exit to widen it. With the canvas focused, use arrow keys and Space to edit. Escape cancels a stroke.</p>
+      <div class="editor-files"><button id="save-layout" type="button">Save layout</button><button id="load-layout" type="button">Load layout</button><input id="layout-file" type="file" accept=".json,application/json" hidden></div>
+      <p id="editor-help" class="field-help">Choose a tool to pause. Click or drag across cells; release to apply. Add exits in clear floor or wall cells; select an existing exit to widen it. With the canvas focused, use arrow keys and Space to edit. Escape cancels a stroke. Save layout downloads a .json file you can load again later.</p>
       <p id="editor-message" role="status">Edits keep every floor area connected to an open exit.</p>`;
     this.exitSelect = document.querySelector<HTMLSelectElement>("#editor-exit")!;
     for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>("[data-tool]")))
@@ -48,6 +51,14 @@ export class Editor {
       this.cancelStroke();
       this.report({ ok: true, message: "Original layout restored and crowd reset." });
       this.update();
+    });
+    document.querySelector("#save-layout")!.addEventListener("click", () => this.save());
+    const fileInput = document.querySelector<HTMLInputElement>("#layout-file")!;
+    document.querySelector("#load-layout")!.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = "";
+      if (file) void this.load(file);
     });
     canvas.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || this.pointer !== null || !this.canEdit()) return;
@@ -118,6 +129,46 @@ export class Editor {
     if (!this.canEdit() || this.tool === "inspect") return;
     this.report(this.model.apply(this.tool, cells, this.exitSelect.value as ExitId | "new"));
     this.lastGrid = this.experiment.simulation.grid;
+    this.update();
+  }
+  private save() {
+    const s = this.experiment.simulation;
+    const url = URL.createObjectURL(new Blob([serializeLayout(s.grid, s.mapId)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `evacuation-lab-${s.mapId}-layout.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    this.report({ ok: true, message: `Layout saved as ${link.download}.` });
+  }
+  /** Loads a saved layout, switching to its map if needed, and resets the crowd on it. */
+  async load(file: File) {
+    this.cancelStroke();
+    const e = this.experiment, s = e.simulation;
+    let loaded;
+    try {
+      loaded = parseLayout(await file.text());
+    } catch (error) {
+      this.report({ ok: false, message: (error as Error).message });
+      return;
+    }
+    const issue = s.layoutConnectivityIssue(loaded.grid);
+    if (issue) { this.report({ ok: false, message: `This layout cannot be used: ${issue}` }); return; }
+    const limit = s.populationLimit(loaded.mapId, loaded.grid);
+    if (limit < 1) { this.report({ ok: false, message: "This layout has no free floor where people can start." }); return; }
+    const requested = s.agentCount, count = Math.min(requested, limit);
+    e.pause();
+    s.mapId = loaded.mapId;
+    s.agentCount = count;
+    s.loadCustomLayout(loaded.grid);
+    e.restart(false);
+    this.model.clearHistory();
+    this.tool = "inspect";
+    this.lastGrid = s.grid;
+    document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
+    document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
+    const reduced = count < requested ? ` (reduced from ${requested} to fit this layout's spawn space)` : "";
+    this.report({ ok: true, message: `Loaded ${file.name} on ${MAPS[s.mapId].name}. Crowd reset to ${count} people${reduced}.` });
     this.update();
   }
   private report(result: EditResult) {

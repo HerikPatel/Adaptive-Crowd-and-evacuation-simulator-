@@ -185,6 +185,7 @@ input[type="number"] { cursor: text; }
 .editor-tools [aria-pressed="true"] { border-color: #62dbc1; color: #62dbc1; background: #193c3d; }
 .editor-actions { margin-top: 12px; align-items: end; }
 .editor-actions > div { flex: 1; min-width: 130px; }
+.editor-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .editor-actions label { margin-top: 0; }
 #editor-help { margin-bottom: 8px; }
 #editor-message { font-size: 12px; min-height: 2.5em; line-height: 1.5; }

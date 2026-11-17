@@ -179,6 +179,10 @@ export class Simulation {
     }
     this.rebuildHash();
   }
+  /** Stores a layout from a saved file as this map's custom layout; call reset() to use it. */
+  loadCustomLayout(grid: Grid) {
+    this.customLayouts.set(this.mapId, grid.cloneLayout(false));
+  }
   restoreOriginalLayout() {
     this.customLayouts.delete(this.mapId);
     this.reset();
