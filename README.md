@@ -62,7 +62,9 @@ npm run preview
 
 Choose **Edit layout first** in setup, or choose a drawing tool during a run to pause it. Click or drag with **Draw wall**, **Erase wall**, or **Add exit**; release to apply the stroke. Select **New exit** to add an opening or an existing exit to widen it. The map supports up to eight exit labels, A–H, each with independent controls and metrics.
 
-**Save layout** downloads the current layout as a small JSON file (`evacuation-lab-<map>-layout.json`, one text row per grid row: `#` wall, `.` floor, `A`–`H` exits). **Load layout** opens a saved file, switches to its map if needed and resets the crowd on it. Files are checked before use: wrong map size, unknown cells, floor on the outer edge, split exits, cut-off areas or no spawn space are rejected with a message, and the current layout is left unchanged.
+**Place furniture** adds tables, desks or shelves: they block walking like walls, every planner routes around them, and the 3D view draws them as table-height blocks. **Erase wall** also removes furniture. **Paint start zone** marks where people start: once any zone exists, the crowd starts only inside start zones instead of the map's preset areas, and **Erase start zone** removes zone cells (erasing all of them returns to the presets). Zones go on open floor only. A zone change resets the crowd into the zones; if the zones hold fewer people than the crowd size you chose, the crowd shrinks to fit and grows back as you paint more zone.
+
+**Save layout** downloads the current layout as a small JSON file (`evacuation-lab-<map>-layout.json`, one text row per grid row: `#` wall, `.` floor, `o` furniture, `A`–`H` exits, plus a `startZones` grid with `S` cells when zones are painted). **Load layout** opens a saved file, switches to its map if needed and resets the crowd on it. Files are checked before use: wrong map size, unknown cells, floor on the outer edge, split exits, cut-off areas or no spawn space are rejected with a message, and the current layout is left unchanged.
 
 Edits must stay inside the map boundary, preserve sufficient spawn space, and leave every floor area connected to an open exit. New walls and exits cannot overlap agents. A rejected stroke changes nothing. **Undo edit** reverses a recent stroke while paused; resuming clears undo history. **Restore original layout** restores the preset and resets the crowd. Keyboard editing uses arrow keys and Space/Enter with the canvas focused; Escape cancels a stroke.
 
@@ -125,7 +127,7 @@ src/
   simulation/
     Simulation.ts           Seeded spawn, fixed updates, prioritized route queue
     Experiment.ts           Setup, timed closures, reset, and results lifecycle
-    LayoutEditor.ts         Transactional wall/exit edits, validation, and undo
+    LayoutEditor.ts         Transactional wall/exit/furniture/start-zone edits, validation, and undo
     LayoutFile.ts           Save/load format for custom layouts, with validation
     Agent.ts                Continuous agent state
     Grid.ts                 Layout cells, exit state, and separate density arrays
@@ -275,7 +277,7 @@ Build and run `npm run preview`. Use a foreground browser tab at a fixed window 
 
 ## Remaining work and documentation
 
-Layout save/load is done. The next implementation priority is saving experiment settings, followed by spawn-area editing, redo, and additional building presets. Remaining validation and delivery work includes evidence for stadium geometry and behavior assumptions, matched-seed movement comparisons, presentation-laptop profiling, the final report/demo/slides, and checks of the GitHub-linked Vercel deployment and its worker/CSV flows. ORCA on stadium concourses, accessible egress, group behavior, and full 3D are further extensions.
+Layout save/load, furniture and start-zone editing are done. The next implementation priority is saving experiment settings and adding redo. Remaining validation and delivery work includes evidence for stadium geometry and behavior assumptions, matched-seed movement comparisons, presentation-laptop profiling, the final report/demo/slides, and checks of the GitHub-linked Vercel deployment and its worker/CSV flows. ORCA on stadium concourses, accessible egress, group behavior, and full 3D are further extensions.
 
 - [Future TODO](FUTURE_TODO.txt) — current priorities and unfinished work.
 - [Roadmap](docs/ROADMAP.md) — implemented features and completion criteria.

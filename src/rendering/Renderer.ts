@@ -44,6 +44,16 @@ export class Renderer {
         c.strokeRect(x * s, y * s, s, s);
       }
     this.heatmap.draw(c, grid, revision);
+    // Furniture: solid like a wall, drawn as a block on the floor.
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++) {
+        if (grid.type(x, y) !== CellType.Obstacle) continue;
+        c.fillStyle = "#6e5a43";
+        c.fillRect(x * s + 2, y * s + 2, s - 4, s - 4);
+        c.strokeStyle = "#b08d64";
+        c.lineWidth = 1;
+        c.strokeRect(x * s + 2.5, y * s + 2.5, s - 5, s - 5);
+      }
     // Wall outlines sit above the heatmap; blocked doors are drawn as solid barriers.
     for (let y = 0; y < grid.height; y++)
       for (let x = 0; x < grid.width; x++) {

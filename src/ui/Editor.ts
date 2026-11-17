@@ -1,5 +1,5 @@
 import { Experiment } from "../simulation/Experiment";
-import { LayoutEditor, type EditTool, type EditResult } from "../simulation/LayoutEditor";
+import { LayoutEditor, isZoneTool, type EditTool, type EditResult } from "../simulation/LayoutEditor";
 import type { ExitId } from "../config/simulationConfig";
 import { MAPS } from "../maps/maps";
 import { parseLayout, serializeLayout } from "../simulation/LayoutFile";
@@ -16,18 +16,22 @@ export class Editor {
   private lastGrid;
   private wasRunning = false;
   private signature = "";
+  /** Crowd size the user asked for; start zones may hold fewer, and grow back to it as zones grow. */
+  private requestedCount: number;
+  private lastSetCount: number;
   private exitSelect: HTMLSelectElement;
   constructor(private experiment: Experiment, private canvas: HTMLCanvasElement) {
     this.model = new LayoutEditor(experiment.simulation);
     this.lastGrid = experiment.simulation.grid;
+    this.requestedCount = this.lastSetCount = experiment.simulation.agentCount;
     document.querySelector("#editor")!.innerHTML = `
       <div class="editor-heading"><strong>Layout editor</strong><span id="layout-state">Original layout</span></div>
       <div class="editor-tools" role="group" aria-label="Drawing tools">
-        <button data-tool="inspect" aria-pressed="true">Inspect</button><button data-tool="wall" aria-pressed="false">Draw wall</button><button data-tool="floor" aria-pressed="false">Erase wall</button><button data-tool="exit" aria-pressed="false">Add exit</button>
+        <button data-tool="inspect" aria-pressed="true">Inspect</button><button data-tool="wall" aria-pressed="false">Draw wall</button><button data-tool="floor" aria-pressed="false">Erase wall</button><button data-tool="exit" aria-pressed="false">Add exit</button><button data-tool="obstacle" aria-pressed="false">Place furniture</button><button data-tool="spawn" aria-pressed="false">Paint start zone</button><button data-tool="unspawn" aria-pressed="false">Erase start zone</button>
       </div>
       <div class="editor-actions"><div><label for="editor-exit">Exit to place</label><select id="editor-exit"><option value="new">New exit</option></select></div><button id="undo-edit">Undo edit</button><button id="restore-layout">Restore original layout</button></div>
       <div class="editor-files"><button id="save-layout" type="button">Save layout</button><button id="load-layout" type="button">Load layout</button><input id="layout-file" type="file" accept=".json,application/json" hidden></div>
-      <p id="editor-help" class="field-help">Choose a tool to pause. Click or drag across cells; release to apply. Add exits in clear floor or wall cells; select an existing exit to widen it. With the canvas focused, use arrow keys and Space to edit. Escape cancels a stroke. Save layout downloads a .json file you can load again later.</p>
+      <p id="editor-help" class="field-help">Choose a tool to pause. Click or drag across cells; release to apply. Erase wall also removes furniture. Furniture blocks walking like a wall but is drawn lower in 3D. Once you paint a start zone, people start only inside start zones. Add exits in clear floor or wall cells; select an existing exit to widen it. With the canvas focused, use arrow keys and Space to edit. Escape cancels a stroke. Save layout downloads a .json file you can load again later.</p>
       <p id="editor-message" role="status">Edits keep every floor area connected to an open exit.</p>`;
     this.exitSelect = document.querySelector<HTMLSelectElement>("#editor-exit")!;
     for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>("[data-tool]")))
@@ -40,7 +44,11 @@ export class Editor {
     this.exitSelect.addEventListener("change", () => this.cancelStroke());
     document.querySelector("#undo-edit")!.addEventListener("click", () => {
       this.cancelStroke();
-      this.report(this.model.undo());
+      const zones = experiment.simulation.grid.spawnZones.join("");
+      const result = this.model.undo();
+      const s = experiment.simulation;
+      if (result.ok && (s.grid.spawnZones.join("") !== zones || s.agentCount > s.populationLimit())) this.fitCrowd(result);
+      this.report(result);
       this.lastGrid = experiment.simulation.grid;
       this.update();
     });
@@ -125,9 +133,28 @@ export class Editor {
     this.stroke.clear();
     this.lastCell = null;
   }
+  /**
+   * Start zones decide where people start, so a zone change resets the crowd into the
+   * new zones, sized to what they hold (up to the size the user asked for).
+   */
+  private fitCrowd(result: EditResult) {
+    const e = this.experiment, s = e.simulation;
+    const target = Math.min(this.requestedCount, s.populationLimit());
+    s.agentCount = target;
+    this.lastSetCount = target;
+    document.querySelector<HTMLInputElement>("#population")!.value = String(target);
+    e.restart(false);
+    this.model.rebase();
+    result.message += " Crowd reset into the start zones.";
+    if (target < this.requestedCount)
+      result.message += ` They hold ${target} of the ${this.requestedCount} people requested; paint more zone to fit more.`;
+  }
   private apply(cells: GridPosition[]) {
     if (!this.canEdit() || this.tool === "inspect") return;
-    this.report(this.model.apply(this.tool, cells, this.exitSelect.value as ExitId | "new"));
+    const tool = this.tool;
+    const result = this.model.apply(tool, cells, this.exitSelect.value as ExitId | "new");
+    if (result.ok && isZoneTool(tool)) this.fitCrowd(result);
+    this.report(result);
     this.lastGrid = this.experiment.simulation.grid;
     this.update();
   }
@@ -162,6 +189,7 @@ export class Editor {
     s.agentCount = count;
     s.loadCustomLayout(loaded.grid);
     e.restart(false);
+    this.requestedCount = this.lastSetCount = count;
     this.model.clearHistory();
     this.tool = "inspect";
     this.lastGrid = s.grid;
@@ -178,6 +206,8 @@ export class Editor {
   }
   update() {
     const s = this.experiment.simulation;
+    // A crowd size set elsewhere (controls, setup, loading) becomes the new request.
+    if (s.agentCount !== this.lastSetCount) this.requestedCount = this.lastSetCount = s.agentCount;
     if (s.running && !this.wasRunning) {
       this.model.clearHistory();
       this.tool = "inspect";
@@ -205,11 +235,33 @@ export class Editor {
     document.querySelector("#layout-state")!.textContent = `${s.hasCustomLayout ? "Edited" : "Original"} layout · ${ids.length} exits`;
   }
   render(ctx: CanvasRenderingContext2D) {
+    const s = this.experiment.simulation, grid = s.grid, size = grid.cellSize;
+    // Start zones show while editing and before a run starts.
+    if (grid.hasSpawnZones && (this.canEdit() || (s.time === 0 && !s.running))) {
+      ctx.save();
+      ctx.fillStyle = "#7fb6ff22";
+      ctx.strokeStyle = "#7fb6ffaa";
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      for (let y = 0; y < grid.height; y++)
+        for (let x = 0; x < grid.width; x++) {
+          if (!grid.spawnZones[grid.index(x, y)]) continue;
+          ctx.fillRect(x * size, y * size, size, size);
+          for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]])
+            if (!grid.inside(x + dx, y + dy) || !grid.spawnZones[grid.index(x + dx, y + dy)]) {
+              ctx.beginPath();
+              const x0 = (x + (dx > 0 ? 1 : 0)) * size, y0 = (y + (dy > 0 ? 1 : 0)) * size;
+              ctx.moveTo(x0, y0);
+              ctx.lineTo(dx === 0 ? x0 + size : x0, dy === 0 ? y0 + size : y0);
+              ctx.stroke();
+            }
+        }
+      ctx.restore();
+    }
     if (!this.canEdit()) return;
-    const grid = this.experiment.simulation.grid, size = grid.cellSize;
     const cells = this.stroke.size ? Array.from(this.stroke.values()) : this.cursor ? [this.cursor] : [];
     ctx.save();
-    ctx.fillStyle = this.tool === "wall" ? "#efb36d66" : this.tool === "exit" ? "#67dec166" : "#b9d7ff66";
+    ctx.fillStyle = { wall: "#efb36d66", exit: "#67dec166", obstacle: "#c49a6c88", spawn: "#7fb6ff66", unspawn: "#ef735c55", floor: "#b9d7ff66", inspect: "#b9d7ff66" }[this.tool];
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5;
     for (const p of cells) {

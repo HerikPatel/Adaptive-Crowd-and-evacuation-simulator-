@@ -35,6 +35,17 @@ export class Simulation {
   }
   spawnSlots(grid: Grid, mapId: MapId = this.mapId) {
     const slots: { x: number; y: number }[] = [];
+    if (grid.hasSpawnZones) {
+      // Painted start zones replace the preset areas; same 12 px lattice, so spacing is unchanged.
+      for (let y = 6; y < grid.height * grid.cellSize; y += 12)
+        for (let x = 6; x < grid.width * grid.cellSize; x += 12) {
+          const p = { x, y }, cell = grid.cell(p);
+          if (grid.spawnZones[grid.index(cell.x, cell.y)] && !grid.exitAt(cell.x, cell.y) &&
+              !this.collision.intersectsWall(p, CONFIG.agentRadius + 1, grid))
+            slots.push(p);
+        }
+      return slots;
+    }
     for (const area of MAPS[mapId].spawnAreas)
       for (let y = area.y1; y <= area.y2; y += 12)
         for (let x = area.x1; x <= area.x2; x += 12) {

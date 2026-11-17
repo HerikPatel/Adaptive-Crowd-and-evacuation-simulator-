@@ -55,3 +55,23 @@ test("invalid files are rejected with a clear message", () => {
   assert.throws(() => parseLayout(bad((d) => { d.cells[0] = "." + d.cells[0].slice(1); })), /touches the map edge/);
   assert.throws(() => parseLayout(bad((d) => { d.cells[10] = d.cells[10].slice(0, 25) + "A" + d.cells[10].slice(26); })), /Exit A is split/);
 });
+
+test("furniture and start zones round-trip through a layout file", () => {
+  const s = new Simulation(40, "mvp");
+  const editor = new LayoutEditor(s);
+  assert.ok(editor.apply("obstacle", [{ x: 27, y: 9 }]).ok);
+  const zone = [] as { x: number; y: number }[];
+  for (let y = 15; y <= 20; y++) for (let x = 4; x <= 12; x++) zone.push({ x, y });
+  assert.ok(editor.apply("spawn", zone).ok);
+  const text = serializeLayout(s.grid, "mvp");
+  const data = JSON.parse(text);
+  assert.equal(data.cells[9][27], "o");
+  assert.equal(data.startZones[15][4], "S");
+  const loaded = parseLayout(text);
+  assert.equal(loaded.grid.type(27, 9), CellType.Obstacle);
+  assert.ok(loaded.grid.hasSpawnZones);
+  assert.deepEqual(Array.from(loaded.grid.spawnZones), Array.from(s.grid.spawnZones));
+  const bad = structuredClone(data);
+  bad.startZones[0] = "S" + bad.startZones[0].slice(1);
+  assert.throws(() => parseLayout(JSON.stringify(bad)), /not on open floor/);
+});

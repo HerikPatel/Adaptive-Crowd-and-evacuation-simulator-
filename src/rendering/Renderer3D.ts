@@ -161,10 +161,12 @@ export class Renderer3D {
     const walls: [number, number][] = [];
     const blocked: [number, number][] = [];
     const exits: [number, number][] = [];
+    const furniture: [number, number][] = [];
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const exit = grid.exitAt(x, y);
         if (exit) (grid.blockedExits.has(exit) ? blocked : exits).push([x, y]);
+        if (grid.type(x, y) === CellType.Obstacle) furniture.push([x, y]);
         if (grid.type(x, y) !== CellType.Wall) continue;
         let edge = false;
         for (let dy = -1; dy <= 1 && !edge; dy++)
@@ -184,6 +186,7 @@ export class Renderer3D {
       this.layout.add(mesh);
     };
     box(walls, wallHeight, new THREE.MeshStandardMaterial({ color: COLORS.wall, roughness: 0.75 }));
+    box(furniture, 0.75, new THREE.MeshStandardMaterial({ color: 0x8a6a48, roughness: 0.8 }));
     box(exits, 0.06, new THREE.MeshStandardMaterial({ color: COLORS.exit, emissive: COLORS.exit, emissiveIntensity: 0.6 }), false);
     box(blocked, wallHeight * 0.9, new THREE.MeshStandardMaterial({ color: COLORS.blocked, emissive: COLORS.blocked, emissiveIntensity: 0.35 }));
 

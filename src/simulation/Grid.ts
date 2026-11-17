@@ -5,12 +5,17 @@ export enum CellType {
   Wall,
   ExitA,
   ExitB,
+  // Exits C-H use ExitA + 2..7, so furniture sits after the eight exit labels.
+  Obstacle = 10,
 }
 export class Grid {
   readonly cells: Uint8Array;
   readonly density: Float32Array;
   readonly rawDensity: Float32Array;
   readonly blockedExits = new Set<ExitId>();
+  /** Cells painted as start zones (1). When any exist they replace the map's preset spawn areas. */
+  readonly spawnZones: Uint8Array;
+  get hasSpawnZones() { return this.spawnZones.includes(1); }
   layoutRevision = 0;
   // Preserve the preset/scenario API while all routing uses the exit collection.
   get exitABlocked() { return this.blockedExits.has("A"); }
@@ -34,6 +39,7 @@ export class Grid {
   cloneLayout(includeBlocked = true): Grid {
     const grid = new Grid(this.width, this.height, this.cellSize);
     grid.cells.set(this.cells);
+    grid.spawnZones.set(this.spawnZones);
     if (includeBlocked)
       for (const id of this.blockedExits) grid.blockedExits.add(id);
     return grid;
@@ -44,6 +50,7 @@ export class Grid {
     public cellSize = CONFIG.cellSize as number,
   ) {
     this.cells = new Uint8Array(width * height).fill(CellType.Wall);
+    this.spawnZones = new Uint8Array(width * height);
     this.density = new Float32Array(width * height);
     this.rawDensity = new Float32Array(width * height);
   }
@@ -59,7 +66,7 @@ export class Grid {
   walkable(x: number, y: number) {
     const t = this.type(x, y);
     const exit = this.exitAt(x, y);
-    return t !== CellType.Wall && !(exit && this.blockedExits.has(exit));
+    return t !== CellType.Wall && t !== CellType.Obstacle && !(exit && this.blockedExits.has(exit));
   }
   center(p: GridPosition): Vector2 {
     return { x: (p.x + 0.5) * this.cellSize, y: (p.y + 0.5) * this.cellSize };

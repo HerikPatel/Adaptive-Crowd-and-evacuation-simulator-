@@ -4,7 +4,9 @@ import type { Simulation } from "./Simulation";
 import type { GridPosition } from "../utils/Vector2";
 import { clamp } from "../utils/math";
 
-export type EditTool = "wall" | "floor" | "exit";
+export type EditTool = "wall" | "floor" | "exit" | "obstacle" | "spawn" | "unspawn";
+/** Start-zone tools change where people start, not where they can walk. */
+export const isZoneTool = (tool: EditTool) => tool === "spawn" || tool === "unspawn";
 export interface EditResult { ok: boolean; message: string; }
 
 /** Each drag is validated as one transaction; a rejected stroke changes nothing. */
@@ -14,17 +16,21 @@ export class LayoutEditor {
   constructor(private simulation: Simulation) { this.current = simulation.grid; }
   get canUndo() { this.sync(); return this.history.length > 0; }
   clearHistory() { this.history = []; this.current = this.simulation.grid; }
+  /** Keep undo history across a crowd reset that reuses the same layout. */
+  rebase() { this.current = this.simulation.grid; }
   private sync() {
     if (this.current !== this.simulation.grid) this.clearHistory();
   }
-  private validate(grid: Grid): string | null {
+  private validate(grid: Grid, checkPopulation = true): string | null {
     const s = this.simulation;
     for (const a of s.agents)
       if (!a.evacuated && s.collision.intersectsWall(a.position, a.radius, grid))
         return "A wall would overlap an agent. Choose another cell.";
     const issue = s.layoutConnectivityIssue(grid);
     if (issue) return issue;
-    if (s.populationLimit(s.mapId, grid.cloneLayout(false)) < s.agentCount)
+    if (!checkPopulation) {
+      if (s.populationLimit(s.mapId, grid.cloneLayout(false)) < 1) return "Start zones need room for at least one person.";
+    } else if (s.populationLimit(s.mapId, grid.cloneLayout(false)) < s.agentCount)
       return "This edit leaves too little spawn space for the selected crowd size.";
     return null;
   }
@@ -43,6 +49,14 @@ export class LayoutEditor {
           p.x <= 0 || p.y <= 0 || p.x >= grid.width - 1 || p.y >= grid.height - 1)
         return { ok: false, message: "Keep edits inside the outer boundary of the map." };
       const existing = grid.exitAt(p.x, p.y);
+      if (isZoneTool(tool)) {
+        const index = grid.index(p.x, p.y), value = tool === "spawn" ? 1 : 0;
+        if (value && grid.cells[index] !== CellType.Walkable)
+          return { ok: false, message: "Paint start zones on open floor, not on walls, furniture or exits." };
+        if (grid.spawnZones[index] !== value) changed = true;
+        grid.spawnZones[index] = value;
+        continue;
+      }
       if (existing && !(tool === "exit" && existing === id))
         return { ok: false, message: `Exit ${existing} occupies this cell. Choose another cell.` };
       if (tool === "exit") {
@@ -55,9 +69,12 @@ export class LayoutEditor {
             return { ok: false, message: "An agent occupies this cell. Place the exit in a clear cell." };
         }
       }
-      const type = tool === "wall" ? CellType.Wall : tool === "floor" ? CellType.Walkable : CellType.ExitA + EXIT_IDS.indexOf(id!);
+      const type = tool === "wall" ? CellType.Wall : tool === "obstacle" ? CellType.Obstacle
+        : tool === "floor" ? CellType.Walkable : CellType.ExitA + EXIT_IDS.indexOf(id!);
       if (grid.cells[grid.index(p.x, p.y)] !== type) changed = true;
       grid.cells[grid.index(p.x, p.y)] = type;
+      // A start zone only lives on open floor.
+      if (type !== CellType.Walkable) grid.spawnZones[grid.index(p.x, p.y)] = 0;
     }
     if (!changed) return { ok: false, message: "No cells changed." };
     // One label identifies one contiguous opening, even when extended by dragging.
@@ -77,13 +94,21 @@ export class LayoutEditor {
       if (!opening.some((p) => grid.neighbors(p).some((q) => !grid.exitAt(q.x, q.y))))
         return { ok: false, message: "Connect the exit to an open floor cell so agents can reach it." };
     }
-    const issue = this.validate(grid);
+    const issue = this.validate(grid, !isZoneTool(tool));
     if (issue) return { ok: false, message: issue };
     this.history.push(s.grid.cloneLayout());
     if (this.history.length > 50) this.history.shift();
     s.applyEditedLayout(grid);
     this.current = grid;
-    return { ok: true, message: tool === "exit" ? `Exit ${id} added or widened. Routes will update on Start.` : "Layout updated. Routes will update on Start." };
+    const messages: Record<EditTool, string> = {
+      exit: `Exit ${id} added or widened. Routes will update on Start.`,
+      wall: "Layout updated. Routes will update on Start.",
+      floor: "Layout updated. Routes will update on Start.",
+      obstacle: "Furniture placed. People will walk around it.",
+      spawn: "Start zone updated. People start only inside start zones.",
+      unspawn: grid.hasSpawnZones ? "Start zone updated." : "All start zones cleared. People start in the map's default areas again.",
+    };
+    return { ok: true, message: messages[tool] };
   }
   undo(): EditResult {
     this.sync();
@@ -92,7 +117,8 @@ export class LayoutEditor {
     if (!previous) return { ok: false, message: "No edits to undo." };
     for (const id of this.simulation.grid.blockedExits)
       if (previous.exitIds.includes(id)) previous.blockedExits.add(id);
-    const issue = this.validate(previous);
+    // Undoing a start-zone edit may shrink capacity; the editor then lowers the crowd size.
+    const issue = this.validate(previous, false);
     if (issue) return { ok: false, message: issue };
     this.history.pop();
     this.simulation.applyEditedLayout(previous);

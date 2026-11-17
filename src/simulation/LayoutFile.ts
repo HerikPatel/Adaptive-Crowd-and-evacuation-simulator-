@@ -6,7 +6,9 @@ import { Grid, CellType } from "./Grid";
  * Saved building layouts: a small JSON file with one text row per grid row,
  * so files stay readable and diff cleanly in version control.
  *
- *   #  wall      .  floor      A-H  exit
+ *   #  wall      .  floor      o  furniture      A-H  exit
+ *
+ * Painted start zones, if any, are saved as a second grid ("startZones") where S marks a zone cell.
  */
 export const LAYOUT_FORMAT = "evacuation-lab-layout";
 export const LAYOUT_VERSION = 1;
@@ -18,15 +20,17 @@ export interface LayoutFile {
   width: number;
   height: number;
   cells: string[];
+  startZones?: string[];
 }
 
 export interface LoadedLayout { mapId: MapId; grid: Grid; }
 
-const FLOOR = ".", WALL = "#";
+const FLOOR = ".", WALL = "#", FURNITURE = "o", ZONE = "S";
 
 function cellChar(type: number): string {
   if (type === CellType.Walkable) return FLOOR;
   if (type === CellType.Wall) return WALL;
+  if (type === CellType.Obstacle) return FURNITURE;
   const exit = EXIT_IDS[type - CellType.ExitA];
   if (exit) return exit;
   throw new Error(`Cell type ${type} cannot be saved.`);
@@ -35,6 +39,7 @@ function cellChar(type: number): string {
 function charType(char: string): number | null {
   if (char === FLOOR) return CellType.Walkable;
   if (char === WALL) return CellType.Wall;
+  if (char === FURNITURE) return CellType.Obstacle;
   const exit = EXIT_IDS.indexOf(char as ExitId);
   return exit === -1 ? null : CellType.ExitA + exit;
 }
@@ -46,10 +51,20 @@ export function serializeLayout(grid: Grid, mapId: MapId): string {
     for (let x = 0; x < grid.width; x++) row += cellChar(grid.type(x, y));
     rows.push(row);
   }
-  const file: LayoutFile = { format: LAYOUT_FORMAT, version: LAYOUT_VERSION, map: mapId, width: grid.width, height: grid.height, cells: rows };
+  const zones: string[] = [];
+  if (grid.hasSpawnZones)
+    for (let y = 0; y < grid.height; y++) {
+      let row = "";
+      for (let x = 0; x < grid.width; x++) row += grid.spawnZones[grid.index(x, y)] ? ZONE : FLOOR;
+      zones.push(row);
+    }
+  const file: LayoutFile = { format: LAYOUT_FORMAT, version: LAYOUT_VERSION, map: mapId, width: grid.width, height: grid.height, cells: [] };
+  if (zones.length) file.startZones = [];
   // One row per line keeps the grid readable in any text editor.
-  return JSON.stringify({ ...file, cells: [] }, null, 2)
-    .replace('"cells": []', `"cells": [\n${rows.map((r) => `    ${JSON.stringify(r)}`).join(",\n")}\n  ]`) + "\n";
+  const block = (list: string[]) => `[\n${list.map((r) => `    ${JSON.stringify(r)}`).join(",\n")}\n  ]`;
+  return JSON.stringify(file, null, 2)
+    .replace('"cells": []', `"cells": ${block(rows)}`)
+    .replace('"startZones": []', `"startZones": ${block(zones)}`) + "\n";
 }
 
 /** Parses and validates a layout file. Throws an Error with a message fit for the user. */
@@ -82,6 +97,19 @@ export function parseLayout(text: string): LoadedLayout {
       grid.cells[grid.index(x, y)] = type;
     }
 
+  if (data.startZones !== undefined) {
+    const zones = data.startZones;
+    if (!Array.isArray(zones) || zones.length !== grid.height || zones.some((r) => typeof r !== "string" || r.length !== grid.width))
+      throw new Error(`Start zones must have ${grid.height} rows of ${grid.width} cells.`);
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++) {
+        const char = zones[y][x];
+        if (char !== ZONE && char !== FLOOR) throw new Error(`Unknown start-zone mark "${char}" at row ${y + 1}, column ${x + 1}.`);
+        if (char === ZONE && grid.type(x, y) !== CellType.Walkable)
+          throw new Error(`The start zone at row ${y + 1}, column ${x + 1} is not on open floor.`);
+        grid.spawnZones[grid.index(x, y)] = char === ZONE ? 1 : 0;
+      }
+  }
   for (let y = 0; y < grid.height; y++)
     for (let x = 0; x < grid.width; x++) {
       const edge = x === 0 || y === 0 || x === grid.width - 1 || y === grid.height - 1;
