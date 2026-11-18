@@ -160,8 +160,8 @@ export class Controls {
       ? "Open-exit experiment · Control any exit manually"
       : fire
         ? fire.started
-          ? `Fire started at ${fire.startTime!.toFixed(1)} s · ${fire.burning} cells burning · smoke slows people nearby`
-          : `Fire starts in ${Math.max(0, 5 - s.time).toFixed(1)} simulation seconds`
+          ? `Fire burning since ${fire.startTime!.toFixed(1)} s · ${fire.burning} cell${fire.burning === 1 ? "" : "s"} · smoke slows people nearby`
+          : "Fire is waiting for a clear spot near the middle of the building"
       : this.experiment.closureTriggered
         ? this.experiment.closureMessage
           ? `Scheduled closure skipped: ${this.experiment.closureMessage}`

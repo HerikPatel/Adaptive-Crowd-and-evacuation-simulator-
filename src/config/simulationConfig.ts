@@ -24,7 +24,8 @@ export const CONFIG = {
 } as const;
 /** Fire scenario: ignition time, spread rate and limits, smoke reach and effects. */
 export const FIRE = {
-  startSeconds: 5,
+  /** The fire is already burning when the run starts, so nobody walks through it unaware. */
+  startSeconds: 0,
   spreadIntervalSeconds: 1.5,
   maxCells: 70,
   smokeRangeCells: 4,

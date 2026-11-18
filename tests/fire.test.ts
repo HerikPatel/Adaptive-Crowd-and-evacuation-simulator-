@@ -11,14 +11,14 @@ import { MAPS, type MapId } from "../src/maps/maps";
 
 const run = (e: Experiment, seconds: number) => { while (e.screen === "simulation" && e.simulation.time < seconds) e.update(1 / 60); };
 
-test("fire starts at 5 s, grows over time, and stops at its size limit", () => {
+test("fire is already burning before Start, grows over time, and stops at its size limit", () => {
   const e = new Experiment();
-  e.begin(100, "congestion", "fire", "large", true);
-  run(e, 4.9);
-  assert.equal(e.fire!.started, false);
-  run(e, 5.1);
-  assert.equal(e.fire!.startTime! >= 5 - 1e-6, true);
-  run(e, 10);
+  e.begin(100, "congestion", "fire", "large", false);
+  assert.equal(e.fire!.started, true);
+  assert.equal(e.fire!.startTime, 0);
+  assert.equal(e.fire!.burning, 1);
+  e.resume();
+  run(e, 6);
   const mid = e.fire!.burning;
   assert.ok(mid > 1);
   run(e, 120);
@@ -72,9 +72,12 @@ test("fire is run state: never saved in layouts, cleared on reset and edits", ()
   const loaded = parseLayout(serializeLayout(g, "large"));
   assert.equal(loaded.grid.fire.includes(1), false);
   for (let i = 0; i < g.cells.length; i++) if (g.fire[i]) assert.equal(loaded.grid.cells[i], CellType.Walkable);
+  const before = e.fire!.burning;
   e.restart();
-  assert.equal(e.simulation.grid.fire.includes(1), false);
-  assert.equal(e.fire!.started, false);
+  // Reset clears the spread fire; the new run starts again from a single burning cell.
+  assert.ok(before > 1);
+  assert.equal(e.fire!.burning, 1);
+  assert.equal(e.simulation.grid.fire.reduce((t, v) => t + v, 0), 1);
 });
 
 test("fire runs are deterministic", () => {

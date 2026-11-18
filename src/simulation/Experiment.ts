@@ -7,7 +7,7 @@ export type Scenario = "open" | "closure" | "fire";
 export const SCENARIO_LABELS: Record<Scenario, string> = {
   open: "All exits open",
   closure: "Exit A closes at 5 s",
-  fire: "Fire spreads from the middle at 5 s",
+  fire: "Fire in the middle, spreading from the start",
 };
 export type Screen = "menu" | "simulation" | "results" | "stadium";
 
@@ -47,6 +47,8 @@ export class Experiment {
     this.closureMessage = "";
     this.closureTime = null;
     this.fire = this.scenario === "fire" ? new FireSpread(this.simulation.grid) : null;
+    // Ignite before the first frame, so the fire is visible before Start is pressed.
+    this.fire?.update(this.simulation);
     this.screen = "simulation";
     this.simulation.running = running;
     this.revision++;
