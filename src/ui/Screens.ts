@@ -1,4 +1,4 @@
-import type { RoutingMode } from "../config/simulationConfig";
+import { MOVEMENT_LABELS, ROUTING_LABELS, ROUTING_HELP, ALGORITHM_LABELS, ALGORITHM_HELP, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { Experiment, type Scenario, type Screen } from "../simulation/Experiment";
 import { MAPS, type MapChoiceId } from "../maps/maps";
 
@@ -16,12 +16,20 @@ export class Screens {
       }
       const count = Number(document.querySelector<HTMLInputElement>("#setup-population")!.value);
       const mode = document.querySelector<HTMLSelectElement>("#setup-routing")!.value as RoutingMode;
+      const movement = document.querySelector<HTMLSelectElement>("#setup-movement")!.value as MovementMode;
       const scenario = document.querySelector<HTMLSelectElement>("#setup-scenario")!.value as Scenario;
+      const algorithm = document.querySelector<HTMLSelectElement>("#setup-algorithm")!.value as PathAlgorithm;
+      const previousCrowd = experiment.simulation.crowd;
+      experiment.simulation.crowd = {
+        slowShare: Number(document.querySelector<HTMLSelectElement>("#setup-slow")!.value),
+        groups: document.querySelector<HTMLInputElement>("#setup-groups")!.checked,
+      };
       try {
-        experiment.begin(count, mode, scenario, mapId, (event as SubmitEvent).submitter?.id !== "edit-before-start");
+        experiment.begin(count, mode, scenario, mapId, (event as SubmitEvent).submitter?.id !== "edit-before-start", movement, algorithm);
         document.querySelector("#setup-error")!.textContent = "";
         this.update();
       } catch (error) {
+        experiment.simulation.crowd = previousCrowd;
         document.querySelector("#setup-error")!.textContent = (error as Error).message;
       }
     });
@@ -29,6 +37,16 @@ export class Screens {
       document.querySelector("#setup-error")!.textContent = "";
       this.updateSetup();
     });
+    const syncSetupAlgorithm = () => {
+      const flowField = document.querySelector<HTMLSelectElement>("#setup-routing")!.value === "flow-field";
+      const select = document.querySelector<HTMLSelectElement>("#setup-algorithm")!;
+      select.disabled = flowField;
+      document.querySelector("#setup-algorithm-help")!.textContent = flowField
+        ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
+        : ALGORITHM_HELP[select.value as PathAlgorithm];
+    };
+    document.querySelector("#setup-algorithm")!.addEventListener("change", syncSetupAlgorithm);
+    document.querySelector("#setup-routing")!.addEventListener("change", syncSetupAlgorithm);
     document.querySelector("#run-again")!.addEventListener("click", () => {
       experiment.restart(true);
       this.update();
@@ -67,28 +85,48 @@ export class Screens {
         document.querySelector<HTMLSelectElement>("#setup-map")!.value = s.mapId;
         document.querySelector<HTMLInputElement>("#setup-population")!.value = String(s.agentCount);
         document.querySelector<HTMLSelectElement>("#setup-routing")!.value = s.mode;
+        document.querySelector<HTMLSelectElement>("#setup-movement")!.value = s.movementMode;
+        document.querySelector<HTMLSelectElement>("#setup-algorithm")!.value = s.algorithm;
+        document.querySelector("#setup-algorithm-help")!.textContent = ALGORITHM_HELP[s.algorithm];
+        document.querySelector("#setup-routing")!.dispatchEvent(new Event("change"));
         document.querySelector<HTMLSelectElement>("#setup-scenario")!.value = e.scenario;
+        document.querySelector<HTMLSelectElement>("#setup-slow")!.value = String(s.crowd.slowShare);
+        document.querySelector<HTMLInputElement>("#setup-groups")!.checked = s.crowd.groups;
       }
       this.updateSetup();
     } else if (e.screen === "simulation") {
       document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
       document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
       document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
+      document.querySelector("#routing-control-help")!.textContent = `${ROUTING_HELP[s.mode]} Changing routing resets the run.`;
+      document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
+      document.querySelector<HTMLSelectElement>("#algorithm")!.value = s.algorithm;
+      document.querySelector<HTMLSelectElement>("#slow")!.value = String(s.crowd.slowShare);
+      document.querySelector<HTMLInputElement>("#groups")!.checked = s.crowd.groups;
+      document.querySelector<HTMLSelectElement>("#algorithm")!.disabled = s.mode === "flow-field";
+      document.querySelector("#algorithm-help")!.textContent = s.mode === "flow-field"
+        ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
+        : ALGORITHM_HELP[s.algorithm];
     } else if (e.screen === "results") {
       const m = s.metrics;
       const seconds = (value: number | null) => value === null ? "Unused" : `${value.toFixed(2)} s`;
-      const scenario = e.scenario === "closure"
-        ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? "Exit A closed at 5 s" : "Finished before scheduled closure"
+      const scenario = e.scenario === "fire"
+        ? e.fire?.started ? `Fire burning from ${e.fire.startTime!.toFixed(1)} s, spread to ${e.fire.burning} cells` : "Fire never found a clear spot to start"
+        : e.scenario === "closure"
+        ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? `Exit A closed at ${(e.closureTime ?? 5).toFixed(1)} s` : "Finished before scheduled closure"
         : "All exits initially open";
       document.querySelector("#result-context")!.textContent =
-        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${s.mode === "congestion" ? "Congestion Aware" : "Shortest Path"} · ${scenario}`;
+        `${MAPS[s.mapId].name}${s.hasCustomLayout ? " (edited)" : ""} · ${s.agentCount} agents · ${s.grid.exitIds.length} exits · ${ROUTING_LABELS[s.mode]}${s.mode === "flow-field" ? "" : ` · ${ALGORITHM_LABELS[s.algorithm]}`} · ${MOVEMENT_LABELS[s.movementMode]}${s.crowd.slowShare ? ` · ${s.crowd.slowShare * 100}% slower walkers` : ""}${s.crowd.groups ? " · groups" : ""} · ${scenario}`;
       const results: Record<string, string> = {
         evacuated: `${m.evacuatedCount} / ${s.agentCount}`, total: seconds(m.totalEvacuationTime),
         average: seconds(m.averageEvacuationTime), peak: `${m.peakDensity.toFixed(2)} agents/m²`,
         switches: String(m.routeSwitchCount),
       };
       for (const [key, value] of Object.entries(results)) document.querySelector(`#result-${key}`)!.textContent = value;
-      document.querySelector("#result-exits")!.innerHTML = Array.from(m.byExit, ([id, record]) =>
+      const crowd = s.crowdSummary();
+      const crowdMetrics = (crowd.slowCount ? `<div class="metric"><span>Slower walkers (${crowd.slowCount}) · mean time out</span><strong id="result-slow">${seconds(crowd.slowMean)}</strong></div><div class="metric"><span>Everyone else · mean time out</span><strong id="result-others">${seconds(crowd.othersMean)}</strong></div>` : "")
+        + (crowd.groups ? `<div class="metric"><span>Groups that stayed together</span><strong id="result-groups">${crowd.groups} (${crowd.groupedPeople} people)</strong></div>` : "");
+      document.querySelector("#result-exits")!.innerHTML = crowdMetrics + Array.from(m.byExit, ([id, record]) =>
         `<div class="metric"><span>Used Exit ${id}</span><strong id="result-exit${id}">${record.count}</strong></div><div class="metric"><span>Exit ${id} final clear</span><strong id="result-clear${id}">${seconds(record.clear)}</strong></div>`).join("");
     }
     document.querySelector<HTMLElement>(`#${e.screen}-heading`)!.focus({ preventScroll: true });

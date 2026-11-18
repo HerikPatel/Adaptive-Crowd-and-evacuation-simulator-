@@ -1,5 +1,6 @@
 import {
   CONFIG,
+  FIRE,
   type ExitId,
   type RoutingMode,
 } from "../config/simulationConfig";
@@ -15,7 +16,7 @@ export function findPath(
   grid: Grid,
   start: GridPosition,
   targetExit: ExitId,
-  mode: RoutingMode = "shortest",
+  mode: Exclude<RoutingMode, "flow-field"> = "shortest",
   weight: number = CONFIG.congestionWeight,
 ): PathResult | null {
   const goals = grid.exits(targetExit);
@@ -50,7 +51,8 @@ export function findPath(
       const cost =
         costs[id] +
         1 +
-        (mode === "congestion" ? weight * grid.density[next] : 0);
+        (mode === "congestion" ? weight * grid.density[next] : 0) +
+        FIRE.smokeRouteCost * grid.hazard[next];
       if (cost < costs[next]) {
         costs[next] = cost;
         parent[next] = id;
@@ -63,7 +65,7 @@ export function findPath(
 export function findBestPath(
   grid: Grid,
   start: GridPosition,
-  mode: RoutingMode = "shortest",
+  mode: Exclude<RoutingMode, "flow-field"> = "shortest",
 ): PathResult | null {
   let best: PathResult | null = null;
   for (const id of grid.exitIds) {

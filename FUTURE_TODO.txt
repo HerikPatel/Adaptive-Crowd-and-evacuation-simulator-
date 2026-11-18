@@ -1,0 +1,42 @@
+Project progress and remaining tasks (updated November 16, 2026)
+
+1. Movement quality - COMPLETED
+   - Grid predictive steering, joint contact resolution, and hard body/wall sweep checks.
+   - Dense doorway corner handling, cooperative queues, and atomic safe door closures.
+   - Stadium passing in eligible wide corridors, merging, and a selectable queue baseline.
+   - Movement modes recorded in experiments and CSV/statistics; regression coverage verified.
+   - Optional ORCA local movement for both building maps, with matched resets and labeled results.
+     Stadium ORCA remains future work; its queue/passing model is separate.
+   - Shared flow-field building routing with cached reverse Dijkstra, congestion refreshes,
+     immediate layout/exit invalidation, and routing-work counters; compatible with ORCA.
+   - See docs/VALIDATION.md for test results, completion times, and local performance samples.
+
+2. Finish the editor
+   - Save and load custom layouts and experiment settings using a validated, versioned format.
+   - Add spawn-area editing and redo.
+   - Presets added: lecture hall, classroom corridor, open-plan office, dining hall, library.
+
+3. Improve realism
+   - Validate stadium dimensions, corridor/gate widths, and transfer capacities against permitted plans or observations.
+   - Support agent distributions and walking-speed assumptions with evidence.
+   - Document remaining assumptions and run sensitivity comparisons.
+   - Run matched-seed queue/passing benchmarks for stadium-movement-v2.
+     Existing stadium-traffic-v1 benchmark CSVs are historical and do not measure passing.
+   - Compare building ORCA against predictive steering across layouts, closures and seeds.
+     Current dense-map ORCA cases finish more slowly; tune only with repeatable evidence.
+   - Investigate ORCA on stadium concourses while retaining explicit transfer/landing queues.
+   - Broaden shared flow-field vs A* comparisons across crowd sizes, seeds and closures,
+     holding local movement fixed; measure routing CPU cost and browser FPS separately.
+
+4. Prepare delivery
+   - Investigate dense ORCA render cost: the latest 500-person shared-field samples were
+     9-15 FPS, below the 20-FPS target. A previous-build control also reproduced low
+     A* cadence on this host; see docs/VALIDATION.md before comparing old benchmarks.
+   - Profile the production build on the presentation laptop, including dense stadium runs.
+   - Finalize the demo, report, and up to four slides on navigation and collision detection.
+   - Check the GitHub-linked Vercel deployment after the code push.
+   - Verify deployed experiment workers and CSV downloads.
+
+Done: 3D view of the building maps (three.js) and selectable path planners (A*, Theta*/T*, Dijkstra, greedy, BFS).
+Optional extensions: 3D stadium view, stress/panic, group behavior, accessible egress, and learned policies.
+Next implementation priority: finish the editor (priority 2).

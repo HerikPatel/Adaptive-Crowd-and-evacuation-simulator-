@@ -1,0 +1,60 @@
+import { test, expect } from "@playwright/test";
+
+test("building ORCA selection survives reset, map changes, stadium visits and results", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/");
+  await expect(page.locator("#setup-movement")).toHaveValue("predictive");
+  await page.locator("#setup-movement").selectOption("orca");
+  await page.locator("#edit-before-start").click();
+  await expect(page.locator("#movement")).toHaveValue("orca");
+  await expect(page.locator("#status")).toHaveText("Ready");
+  const snapshot = () => page.locator("#world").evaluate(c => (c as HTMLCanvasElement).toDataURL());
+  const initial = await snapshot();
+  await page.locator("#start").click();
+  await expect.poll(async () => parseFloat(await page.locator("#metric-elapsed").innerText())).toBeGreaterThan(1);
+  await page.locator("#pause").click();
+  await expect(page.locator("#status")).toHaveText("Paused");
+  const paused = await page.locator("#metric-elapsed").innerText();
+  await page.waitForTimeout(200);
+  await expect(page.locator("#metric-elapsed")).toHaveText(paused);
+  await page.locator("#reset").click();
+  await expect(page.locator("#movement")).toHaveValue("orca");
+  await expect.poll(snapshot).toBe(initial);
+  await page.locator("#start").click();
+  await page.locator("#movement").selectOption("predictive");
+  await expect(page.locator("#status")).toHaveText("Ready");
+  await expect(page.locator("#metric-elapsed")).toHaveText("0.0 s");
+  await expect.poll(snapshot).toBe(initial);
+  await page.locator("#movement").selectOption("orca");
+  await page.locator("#map").selectOption("mvp");
+  await expect(page.locator("#movement")).toHaveValue("orca");
+  await page.locator("#simulation-screen [data-menu]").click();
+  await expect(page.locator("#setup-movement")).toHaveValue("orca");
+  // Preserve unsubmitted building settings across a stadium visit.
+  await page.locator("#setup-movement").selectOption("predictive");
+  await page.locator("#setup-map").selectOption("stadium");
+  await expect(page.locator("#setup-movement")).toBeDisabled();
+  await page.locator("#setup-launch").click();
+  await page.locator("#stadium-screen [data-menu]").click();
+  await page.locator("#setup-map").selectOption("mvp");
+  await expect(page.locator("#setup-movement")).toHaveValue("predictive");
+  await page.locator("#setup-movement").selectOption("orca");
+  await page.locator("#setup-population").fill("1");
+  await page.locator("#setup-launch").click();
+  await expect(page.locator("#results-screen")).toBeVisible({ timeout: 60000 });
+  await expect(page.locator("#result-context")).toContainText("ORCA");
+  await expect(page.locator("#result-evacuated")).toHaveText("1 / 1");
+  await page.locator("#run-again").click();
+  await expect(page.locator("#movement")).toHaveValue("orca");
+  expect(errors).toEqual([]);
+});
+
+test("ORCA controls fit a mobile screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.locator("#setup-movement").selectOption("orca");
+  await page.locator("#edit-before-start").click();
+  await expect(page.locator("#movement")).toHaveValue("orca");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

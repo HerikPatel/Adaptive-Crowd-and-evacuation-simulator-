@@ -4,6 +4,7 @@ import {
 } from "../maps/stadium";
 import { StadiumRoutes, stadiumAssumptionsText } from "./StadiumRoutes";
 import { Stadium3DView, type StadiumLighting } from "./Stadium3DView";
+import { StadiumExperiments } from "./StadiumExperiments";
 import { STADIUM_DESTINATIONS, type StadiumViewLevel, type StadiumViewMode } from "./StadiumVisuals";
 import { physicalToSvg, sourceToPhysical, STADIUM_PHYSICAL_SEATS } from "../simulation/StadiumPhysicalGeometry";
 
@@ -94,7 +95,7 @@ export class StadiumViewer {
           <ul>${Object.values(STADIUM_SOURCES).map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title}</a></li>`).join("")}</ul>
           <p>References inspected ${STADIUM.inspected}. Premium areas and the field are reference only. Elevator evacuation use is unspecified.</p>
         </details>
-      </aside></div>`;
+      </aside></div><section id="stadium-experiments" class="screen-card" aria-label="Stadium experiment comparisons"></section>`;
     this.svg = root.querySelector<SVGSVGElement>("#stadium-map")!;
     this.picker = root.querySelector<HTMLSelectElement>("#stadium-feature-picker")!;
     root.querySelectorAll<HTMLButtonElement>("[data-level]").forEach(button => button.addEventListener("click", () => {
@@ -135,6 +136,8 @@ export class StadiumViewer {
       this.updateView(); this.updateSeatingDetail();
     }));
     this.routes = new StadiumRoutes(root, this.svg, id => this.select(id), id => this.selectPerson(id));
+    const experiments = new StadiumExperiments(root.querySelector("#stadium-experiments")!, () => this.routes.pause());
+    root.querySelector("[data-menu]")!.addEventListener("click", () => experiments.cancel());
     const personPanel = root.querySelector<HTMLDetailsElement>(".stadium-profile-panel")!;
     root.querySelector("#stadium-person-context")!.append(personPanel);
     personPanel.open = true;

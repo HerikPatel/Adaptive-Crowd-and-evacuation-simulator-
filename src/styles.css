@@ -148,6 +148,32 @@ select,
 input[type="number"] {
   width: 100%;
 }
+#stadium-experiments { margin-top: 24px; min-width: 0; }
+.stadium-experiment-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 0; border: 0; margin: 18px 0; min-width: 0; }
+.stadium-experiment-form > div { min-width: 0; }
+.stadium-experiment-form input, .stadium-experiment-form select { width: 100%; min-width: 0; }
+.stadium-experiment-form input { padding: 11px 12px; border: 1px solid #30495c; border-radius: 6px; background: #1b2e40; color: #dce7ed; font: inherit; }
+.stadium-experiment-form button { justify-self: start; }
+.stadium-experiment-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+#experiment-progress { width: 100%; }
+.stadium-result-bar { margin: 12px 0; font-size: 12px; }
+.stadium-result-bar > span { display: block; margin-bottom: 4px; color: #afc2d1; }
+.stadium-result-bar > div { position: relative; background: #152838; padding-right: 85px; height: 25px; }
+.stadium-result-bar i { display: block; height: 100%; background: #7399e1; }
+.stadium-result-bar i.adaptive { background: #46bba5; }
+.stadium-result-bar strong { position: absolute; right: 8px; top: 5px; }
+.stadium-table-scroll { overflow-x: auto; max-width: 100%; margin-top: 18px; }
+.stadium-table-scroll table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.stadium-table-scroll th, .stadium-table-scroll td { padding: 12px; text-align: left; border-bottom: 1px solid #263747; }
+.stadium-table-scroll th[scope="row"] { min-width: 230px; font-weight: 400; }
+.stadium-table-scroll caption { text-align: left; padding: 8px 0; }
+#experiment-chart { width: 100%; background: #101c2b; border: 1px solid #263747; border-radius: 8px; }
+#experiment-chart text { fill: #c6d5df; font: 12px sans-serif; }
+.chart-grid { stroke: #263747; fill: none; }
+.chart-axis { stroke: #8c9fb1; fill: none; }
+.chart-line { stroke: #63dbc4; stroke-width: 2.5; fill: none; }
+.chart-closure { stroke: #ffbd72; stroke-dasharray: 4 4; }
+@media (max-width: 550px) { .stadium-experiment-form { grid-template-columns: 1fr; } #experiment-chart text { font-size: 20px; } }
 input[type="number"] { cursor: text; }
 .error { color: #ffb49c; }
 .error:empty { display: none; }
@@ -159,6 +185,7 @@ input[type="number"] { cursor: text; }
 .editor-tools [aria-pressed="true"] { border-color: #62dbc1; color: #62dbc1; background: #193c3d; }
 .editor-actions { margin-top: 12px; align-items: end; }
 .editor-actions > div { flex: 1; min-width: 130px; }
+.editor-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .editor-actions label { margin-top: 0; }
 #editor-help { margin-bottom: 8px; }
 #editor-message { font-size: 12px; min-height: 2.5em; line-height: 1.5; }
@@ -562,3 +589,33 @@ progress {
     margin-top: 6px;
   }
 }
+.view-toggle { display: inline-flex; gap: 0; margin-left: auto; }
+.view-toggle button { font-size: 12px; padding: 6px 12px; border-radius: 0; }
+.view-toggle button:first-child { border-radius: 8px 0 0 8px; }
+.view-toggle button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.view-toggle [aria-pressed="true"] { background: #193c3d; border-color: #62dbc1; color: #8debd7; }
+#world3d { position: relative; }
+#world3d canvas { display: block; touch-action: none; cursor: grab; }
+#world3d canvas:active { cursor: grabbing; }
+.view3d-tools { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+.view3d-tools > * { pointer-events: auto; }
+.view3d-tools button { font-size: 12px; padding: 6px 10px; background: #101c2bd9; }
+.view3d-tools .check { margin: 0; font-size: 12px; background: #101c2bd9; padding: 6px 10px; border-radius: 8px; border: 1px solid #3a5268; display: flex; gap: 6px; align-items: center; }
+.view3d-tools span { font-size: 11px; color: #8ea4b6; margin-left: auto; background: #101c2bd9; padding: 6px 10px; border-radius: 8px; }
+#view3d-error:empty { display: none; }
+#building-comparison { margin-top: 16px; }
+.comparison-panel { border: 1px solid #263747; border-radius: 10px; padding: 0 16px; background: #0f1a27; }
+.comparison-panel[open] { padding-bottom: 16px; }
+.comparison-panel summary { cursor: pointer; padding: 14px 0; list-style-position: inside; }
+.comparison-panel summary span { color: #8ea4b6; font-size: 12px; margin-left: 6px; }
+.comparison-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border: 0; padding: 0; margin: 12px 0; min-width: 0; }
+.comparison-form fieldset.checks { border: 1px solid #263747; border-radius: 8px; padding: 8px 12px; margin: 0; display: grid; gap: 4px; }
+.comparison-form legend { font-size: 12px; color: #afc2d1; padding: 0 4px; }
+.comparison-form .check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.comparison-form input[type="number"] { width: 100%; padding: 11px 12px; border: 1px solid #30495c; border-radius: 6px; background: #1b2e40; color: #dce7ed; font: inherit; }
+.comparison-submit { display: flex; align-items: end; }
+#comparison-progress { width: 100%; }
+.stadium-result-bar i.best { background: #46bba5; }
+.stadium-result-bar i.timeout { background: #ef735c; }
+@media (max-width: 550px) { .comparison-form { grid-template-columns: 1fr; } }
+.legend .slow-walker { color: #c9a2ff; }

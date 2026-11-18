@@ -13,10 +13,19 @@ export class Agent {
   reroutingUntil = 0;
   evacuationTime: number | null = null;
   queued = false;
+  stalledSeconds = 0;
+  /** Normal walking speed; `speed` is this, reduced while walking through smoke. */
+  baseSpeed: number;
+  /** Slower walkers move at a fraction of normal speed. */
+  slow = false;
+  /** Group id (the leader's id) for people in a group; null for people on their own. */
+  groupId: number | null = null;
   constructor(
     public id: number,
     public position: Vector2,
     public speed: number,
     public replanOffset = 0,
-  ) {}
+  ) {
+    this.baseSpeed = speed;
+  }
 }

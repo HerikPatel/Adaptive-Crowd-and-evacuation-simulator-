@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "tsx --test tests/*.test.ts",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "benchmark:stadium": "tsx scripts/stadium-benchmark.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

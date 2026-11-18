@@ -1,13 +1,15 @@
 import { createMvpMap } from "./mvpMap";
 import { createLargeMap } from "./largeMap";
 import type { Grid } from "../simulation/Grid";
+import type { ExitId } from "../config/simulationConfig";
+import { createLectureHall, createClassroomCorridor, createOfficeFloor, createDiningHall, createLibrary } from "./campusMaps";
 
-export type MapId = "mvp" | "large";
+export type MapId = "mvp" | "large" | "lecture" | "corridor" | "office" | "dining" | "library";
 export interface MapLabel {
   text: string;
   x: number;
   y: number;
-  exit?: "A" | "B";
+  exit?: ExitId;
 }
 export interface SpawnArea {
   x1: number;
@@ -17,6 +19,7 @@ export interface SpawnArea {
 }
 export interface MapDefinition {
   name: string;
+  description: string;
   create: () => Grid;
   spawnAreas: SpawnArea[];
   labels: MapLabel[];
@@ -25,6 +28,7 @@ export interface MapDefinition {
 export const MAPS: Record<MapId, MapDefinition> = {
   mvp: {
     name: "Original bottleneck · 50 × 30",
+    description: "Bottleneck experiment with a shared start area.",
     create: createMvpMap,
     spawnAreas: [{ x1: 60, y1: 100, x2: 350, y2: 490 }],
     labels: [
@@ -38,6 +42,7 @@ export const MAPS: Record<MapId, MapDefinition> = {
   },
   large: {
     name: "Distributed wings · 70 × 42",
+    description: "Agents start across four wings. The original exits face west and south.",
     create: createLargeMap,
     spawnAreas: [
       { x1: 120, y1: 140, x2: 510, y2: 310 },
@@ -53,6 +58,74 @@ export const MAPS: Record<MapId, MapDefinition> = {
       { text: "CENTRAL HALL", x: 580, y: 350 },
       { text: "← EXIT A / WEST", x: 30, y: 75, exit: "A" },
       { text: "EXIT B / SOUTH ↓", x: 1060, y: 826, exit: "B" },
+    ],
+  },
+  lecture: {
+    name: "Lecture hall · 60 × 40",
+    description: "Seat rows with side and centre aisles. A single front door (A), a double front door (B) and two rear doors (C, D).",
+    create: createLectureHall,
+    spawnAreas: [{ x1: 160, y1: 230, x2: 1040, y2: 690 }],
+    labels: [
+      { text: "STAGE", x: 560, y: 140 },
+      { text: "SEATING", x: 545, y: 715 },
+      { text: "EXIT A", x: 25, y: 130, exit: "A" },
+      { text: "EXIT B", x: 1075, y: 110, exit: "B" },
+      { text: "EXIT C", x: 165, y: 770, exit: "C" },
+      { text: "EXIT D", x: 960, y: 770, exit: "D" },
+    ],
+  },
+  corridor: {
+    name: "Classroom corridor · 70 × 32",
+    description: "Ten classrooms open onto one corridor. Narrow west stair (A), wide east stair (B) and a south lobby exit (C).",
+    create: createClassroomCorridor,
+    spawnAreas: [{ x1: 85, y1: 65, x2: 1315, y2: 245 }, { x1: 85, y1: 385, x2: 1315, y2: 565 }],
+    labels: [
+      { text: "NORTH CLASSROOMS", x: 90, y: 50 },
+      { text: "CORRIDOR", x: 620, y: 325 },
+      { text: "SOUTH CLASSROOMS", x: 90, y: 600 },
+      { text: "A", x: 6, y: 300, exit: "A" },
+      { text: "EXIT B", x: 1340, y: 270, exit: "B" },
+      { text: "EXIT C / LOBBY", x: 615, y: 615, exit: "C" },
+    ],
+  },
+  office: {
+    name: "Open-plan office · 64 × 40",
+    description: "Desk islands around a service core with lifts (not used for evacuation). Three stair exits.",
+    create: createOfficeFloor,
+    spawnAreas: [{ x1: 70, y1: 70, x2: 1210, y2: 720 }],
+    labels: [
+      { text: "SERVICE CORE", x: 555, y: 395 },
+      { text: "MEETING", x: 70, y: 285 },
+      { text: "MEETING", x: 1125, y: 285 },
+      { text: "EXIT A", x: 25, y: 95, exit: "A" },
+      { text: "EXIT B", x: 1155, y: 715, exit: "B" },
+      { text: "EXIT C", x: 1000, y: 35, exit: "C" },
+    ],
+  },
+  dining: {
+    name: "Dining hall · 66 × 42",
+    description: "Student-center dining hall with tables and a serving counter. Wide main entrance (B), narrow west door (A), east patio door (C).",
+    create: createDiningHall,
+    spawnAreas: [{ x1: 70, y1: 170, x2: 1250, y2: 720 }],
+    labels: [
+      { text: "KITCHEN (STAFF ONLY)", x: 520, y: 100 },
+      { text: "SERVING COUNTER", x: 380, y: 200 },
+      { text: "EXIT A", x: 25, y: 465, exit: "A" },
+      { text: "EXIT B / MAIN ENTRANCE", x: 515, y: 830, exit: "B" },
+      { text: "EXIT C", x: 1235, y: 395, exit: "C" },
+    ],
+  },
+  library: {
+    name: "Library stacks · 64 × 40",
+    description: "Long shelving rows with a main aisle and a reading room. Main entrance (A), reading-room fire exit (B), narrow staff door (C).",
+    create: createLibrary,
+    spawnAreas: [{ x1: 70, y1: 70, x2: 1210, y2: 720 }],
+    labels: [
+      { text: "STACKS", x: 300, y: 55 },
+      { text: "READING ROOM", x: 940, y: 55 },
+      { text: "EXIT A / ENTRANCE", x: 500, y: 770, exit: "A" },
+      { text: "EXIT B", x: 1215, y: 350, exit: "B" },
+      { text: "C", x: 6, y: 665, exit: "C" },
     ],
   },
 };

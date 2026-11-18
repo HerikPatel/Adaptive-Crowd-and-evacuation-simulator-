@@ -44,6 +44,32 @@ export class Renderer {
         c.strokeRect(x * s, y * s, s, s);
       }
     this.heatmap.draw(c, grid, revision);
+    // Smoke (grey haze) and fire (flickering cells) from the fire scenario.
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++) {
+        const i = grid.index(x, y);
+        if (grid.hazard[i] > 0) {
+          c.fillStyle = `rgba(150,156,166,${(0.15 + 0.45 * grid.hazard[i]).toFixed(3)})`;
+          c.fillRect(x * s, y * s, s, s);
+        }
+        if (grid.fire[i]) {
+          const flicker = 0.5 + 0.5 * Math.sin(time * 9 + x * 1.7 + y * 2.3);
+          c.fillStyle = `rgb(${230 + 25 * flicker | 0},${90 + 70 * flicker | 0},40)`;
+          c.fillRect(x * s, y * s, s, s);
+          c.fillStyle = "#ffe08a";
+          c.fillRect(x * s + 6, y * s + 6, s - 12, s - 12);
+        }
+      }
+    // Furniture: solid like a wall, drawn as a block on the floor.
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++) {
+        if (grid.type(x, y) !== CellType.Obstacle) continue;
+        c.fillStyle = "#6e5a43";
+        c.fillRect(x * s + 2, y * s + 2, s - 4, s - 4);
+        c.strokeStyle = "#b08d64";
+        c.lineWidth = 1;
+        c.strokeRect(x * s + 2.5, y * s + 2.5, s - 5, s - 5);
+      }
     // Wall outlines sit above the heatmap; blocked doors are drawn as solid barriers.
     for (let y = 0; y < grid.height; y++)
       for (let x = 0; x < grid.width; x++) {
@@ -106,9 +132,21 @@ export class Renderer {
       c.font = label.exit ? "bold 12px Segoe UI" : "11px Segoe UI";
       c.fillText(blocked ? `EXIT ${label.exit} / BLOCKED` : label.text, label.x, label.y);
     }
+    // Thin links between members of a group show who is walking together.
+    c.strokeStyle = "#c6e4ff55";
+    c.lineWidth = 1;
+    for (const a of agents) {
+      if (a.evacuated || a.groupId === null || a.groupId === a.id) continue;
+      const leader = agents[a.groupId];
+      if (!leader || leader.evacuated) continue;
+      c.beginPath();
+      c.moveTo(a.position.x, a.position.y);
+      c.lineTo(leader.position.x, leader.position.y);
+      c.stroke();
+    }
     for (const a of agents) {
       if (a.evacuated) continue;
-      c.fillStyle = a.reroutingUntil > time ? "#ffc477" : "#c6e4ff";
+      c.fillStyle = a.reroutingUntil > time ? "#ffc477" : a.slow ? "#c9a2ff" : "#c6e4ff";
       c.beginPath();
       c.arc(a.position.x, a.position.y, a.radius, 0, Math.PI * 2);
       c.fill();

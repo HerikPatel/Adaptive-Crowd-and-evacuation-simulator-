@@ -1,8 +1,8 @@
 # SHI Stadium map study
 
-Prepared 2026-11-12; updated 2026-11-15. Status: shared physical geometry, committed personal routing, north-up 2D, and linked architectural 3D are implemented.
+Prepared 2026-11-12; updated 2026-11-18. Status: shared physical geometry, committed personal and adaptive routing, north-up 2D, linked architectural 3D, experiment comparisons, and controlled wide-corridor passing are implemented.
 
-The selected scenario is a football game with spectators starting in the stands. Movement across connected surfaces now includes synthetic individual profiles and continuous body-clearance checks. See [agent behavior and collision handling](AGENT_BEHAVIOR.md) for the current model and its assumptions. Alternative adaptive planning algorithms remain later work.
+The selected scenario is a football game with spectators starting in the stands. Movement across connected surfaces includes synthetic individual profiles, continuous body-clearance checks, free-flow/adaptive route comparisons, and queue/passing movement comparisons. See [agent behavior and collision handling](AGENT_BEHAVIOR.md) and [stadium experiments](STADIUM_EXPERIMENTS.md) for assumptions and limits.
 
 ## Implemented map viewer
 
@@ -11,7 +11,7 @@ From setup, choose **SHI Stadium · Schematic simulation** in **Building layout*
 - `src/maps/stadium.ts` contains the original schematic: 44 lower sections, 28 upper sections on separate east/west surfaces, four groups covering the seven published gates, four proposed connections, and two elevator references. It keeps source references alongside features. No Gate F or sections 215/216 are invented.
 - `src/ui/StadiumViewer.ts` renders the schematic as SVG independently of the existing Canvas simulation. Shapes, the continuous concourse ring, and connector endpoints are explicitly approximate or proposed. No official raster image is bundled.
 - Measured geometry, section populations, gate widths, connector travel times, and capacities remain unknown in the source data. A separate scenario supplies explicitly assumed inputs for route inspection and movement. Simulated completion times are not predictions for the real stadium.
-- Individual behavior and body-clearance checks are implemented. The next algorithm milestone is adaptive routing and comparison with established crowd-navigation methods.
+- Individual behavior, body-clearance checks, adaptive routing, matched-seed experiments, and conservative wide-corridor passing are implemented. Calibration against measured stadium movement remains future work.
 
 ## Connected route model (steps 1 and 2)
 
