@@ -1,5 +1,6 @@
 import {
   CONFIG,
+  FIRE,
   type ExitId,
   type RoutingMode,
 } from "../config/simulationConfig";
@@ -50,7 +51,8 @@ export function findPath(
       const cost =
         costs[id] +
         1 +
-        (mode === "congestion" ? weight * grid.density[next] : 0);
+        (mode === "congestion" ? weight * grid.density[next] : 0) +
+        FIRE.smokeRouteCost * grid.hazard[next];
       if (cost < costs[next]) {
         costs[next] = cost;
         parent[next] = id;

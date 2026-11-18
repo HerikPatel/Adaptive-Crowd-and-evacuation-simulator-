@@ -14,10 +14,14 @@ export class Agent {
   evacuationTime: number | null = null;
   queued = false;
   stalledSeconds = 0;
+  /** Normal walking speed; `speed` is this, reduced while walking through smoke. */
+  baseSpeed: number;
   constructor(
     public id: number,
     public position: Vector2,
     public speed: number,
     public replanOffset = 0,
-  ) {}
+  ) {
+    this.baseSpeed = speed;
+  }
 }

@@ -1,4 +1,4 @@
-import { CONFIG, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
+import { CONFIG, FIRE, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { createMvpMap } from "../maps/mvpMap";
 import { MAPS, type MapId } from "../maps/maps";
 import { CongestionRouter } from "../pathfinding/CongestionRouter";
@@ -195,6 +195,36 @@ export class Simulation {
   loadCustomLayout(grid: Grid) {
     this.customLayouts.set(this.mapId, grid.cloneLayout(false));
   }
+  /**
+   * After fire spreads into `cells`, anyone whose remaining route passes through
+   * or right beside them replans immediately, like the people heading for a closed exit.
+   */
+  rerouteAround(cells: number[]) {
+    const g = this.grid, burnt = new Set(cells), urgent: Agent[] = [];
+    const near = (x: number, y: number) => {
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) if (g.inside(x + dx, y + dy) && burnt.has(g.index(x + dx, y + dy))) return true;
+      return false;
+    };
+    for (const a of this.agents) {
+      if (a.evacuated) continue;
+      let prev = g.cell(a.position), hit = false;
+      for (let i = a.pathIndex; i < a.path.length && !hit; i++) {
+        const p = a.path[i], steps = Math.max(1, Math.ceil(Math.hypot(p.x - prev.x, p.y - prev.y) * 2));
+        for (let k = 1; k <= steps && !hit; k++)
+          hit = near(Math.round(prev.x + ((p.x - prev.x) * k) / steps), Math.round(prev.y + ((p.y - prev.y) * k) / steps));
+        prev = p;
+      }
+      if (!hit) continue;
+      a.path = [];
+      a.pathIndex = 0;
+      a.reroutingUntil = this.time + 1.5;
+      urgent.push(a);
+    }
+    const ids = new Set(urgent.map((a) => a.id));
+    this.replanQueue = [...urgent, ...this.replanQueue.filter((a) => !ids.has(a.id))];
+    for (const a of urgent) a.queued = true;
+  }
   restoreOriginalLayout() {
     this.customLayouts.delete(this.mapId);
     this.reset();
@@ -233,6 +263,13 @@ export class Simulation {
     this.processReplans();
     const movements: { agent: Agent; position: { x: number; y: number } }[] =
       [];
+    // Smoke slows walkers; outside a fire scenario hazard is zero and speeds are unchanged.
+    for (const a of this.agents) {
+      if (a.evacuated) continue;
+      const c = this.grid.cell(a.position);
+      const smoke = this.grid.inside(c.x, c.y) ? this.grid.hazard[this.grid.index(c.x, c.y)] : 0;
+      a.speed = a.baseSpeed * (1 - (1 - FIRE.smokeSpeedFactor) * smoke);
+    }
     const maxSpeed = Math.max(0, ...this.agents.filter(a => !a.evacuated).map(a => a.speed));
     for (const a of this.agents) {
       if (a.evacuated) continue;

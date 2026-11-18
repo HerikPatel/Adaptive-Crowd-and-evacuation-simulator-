@@ -1,5 +1,6 @@
 import {
   CONFIG,
+  FIRE,
   type ExitId,
   type PathAlgorithm,
   type RoutingMode,
@@ -30,7 +31,7 @@ const SQRT2 = Math.SQRT2;
 const LOS_RADIUS = CONFIG.agentRadius + 1;
 
 export function stepCost(grid: Grid, next: number, mode: SearchMode, weight: number) {
-  return 1 + (mode === "congestion" ? weight * grid.density[next] : 0);
+  return 1 + (mode === "congestion" ? weight * grid.density[next] : 0) + FIRE.smokeRouteCost * grid.hazard[next];
 }
 
 /** Cost of a straight segment between two cell centers, in cell units. */
@@ -42,16 +43,18 @@ export function segmentCost(
   weight: number = CONFIG.congestionWeight,
 ): number {
   const length = Math.hypot(b.x - a.x, b.y - a.y);
-  if (mode !== "congestion" || length === 0) return length;
+  if (length === 0) return 0;
   const samples = Math.max(1, Math.ceil(length * 2));
-  let density = 0;
+  let density = 0, smoke = 0;
   for (let i = 1; i <= samples; i++) {
     const t = i / samples;
     const x = Math.floor(a.x + 0.5 + (b.x - a.x) * t);
     const y = Math.floor(a.y + 0.5 + (b.y - a.y) * t);
-    density += grid.inside(x, y) ? grid.density[grid.index(x, y)] : 0;
+    if (!grid.inside(x, y)) continue;
+    density += grid.density[grid.index(x, y)];
+    smoke += grid.hazard[grid.index(x, y)];
   }
-  return length * (1 + weight * (density / samples));
+  return length * (1 + (mode === "congestion" ? weight * (density / samples) : 0) + FIRE.smokeRouteCost * (smoke / samples));
 }
 
 /** Squared distance from point (px, py) to segment (ax, ay)-(bx, by). */

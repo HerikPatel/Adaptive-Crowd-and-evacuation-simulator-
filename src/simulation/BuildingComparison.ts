@@ -9,7 +9,7 @@ import {
   type RoutingMode,
 } from "../config/simulationConfig";
 import { MAPS, type MapId } from "../maps/maps";
-import { Experiment, type Scenario } from "./Experiment";
+import { Experiment, SCENARIO_LABELS, type Scenario } from "./Experiment";
 import { parseLayout } from "./LayoutFile";
 
 /**
@@ -150,7 +150,7 @@ export function comparisonCsv(results: ComparisonResult[]): string {
     "evacuated", "total_evacuation_s", "mean_evacuation_s", "elapsed_s", "exit_A_closed_s", ...exits.map((id) => `exit_${id}_count`),
     "route_switches", "peak_density", "compute_ms"];
   const rows = results.map((r) => [r.map, r.layout, ROUTING_LABELS[r.routing], r.algorithm ? ALGORITHM_LABELS[r.algorithm] : "n/a (flow field)",
-    r.movement, r.scenario === "closure" ? "Exit A closes at 5 s" : "All exits open", r.population, r.seed, r.status,
+    r.movement, SCENARIO_LABELS[r.scenario], r.population, r.seed, r.status,
     r.evacuated, round(r.totalEvacuationSeconds), round(r.meanEvacuationSeconds), round(r.elapsedSeconds), round(r.exitAClosedSeconds),
     ...exits.map((id) => r.byExit[id] ?? 0), r.routeSwitches, round(r.peakDensity, 3), Math.round(r.computeMilliseconds)]);
   return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n") + "\n";

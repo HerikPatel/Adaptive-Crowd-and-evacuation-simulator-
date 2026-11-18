@@ -22,6 +22,17 @@ export const CONFIG = {
   maxFrameDelta: 0.1,
   maxPopulation: 1000,
 } as const;
+/** Fire scenario: ignition time, spread rate and limits, smoke reach and effects. */
+export const FIRE = {
+  startSeconds: 5,
+  spreadIntervalSeconds: 1.5,
+  maxCells: 70,
+  smokeRangeCells: 4,
+  /** Walking speed in the thickest smoke, as a fraction of normal speed. */
+  smokeSpeedFactor: 0.55,
+  /** Extra route cost per cell of full smoke, for every routing strategy. */
+  smokeRouteCost: 6,
+} as const;
 export type RoutingMode = "shortest" | "congestion" | "flow-field";
 export const ROUTING_LABELS: Record<RoutingMode, string> = {
   shortest: "Shortest Path", congestion: "Congestion Aware", "flow-field": "Shared Flow Field",

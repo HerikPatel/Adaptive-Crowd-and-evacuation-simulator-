@@ -100,7 +100,9 @@ export class Screens {
     } else if (e.screen === "results") {
       const m = s.metrics;
       const seconds = (value: number | null) => value === null ? "Unused" : `${value.toFixed(2)} s`;
-      const scenario = e.scenario === "closure"
+      const scenario = e.scenario === "fire"
+        ? e.fire?.started ? `Fire started at ${e.fire.startTime!.toFixed(1)} s and spread to ${e.fire.burning} cells` : "Finished before the fire started"
+        : e.scenario === "closure"
         ? e.closureMessage ? `Scheduled closure skipped: ${e.closureMessage}` : e.closureTriggered ? `Exit A closed at ${(e.closureTime ?? 5).toFixed(1)} s` : "Finished before scheduled closure"
         : "All exits initially open";
       document.querySelector("#result-context")!.textContent =

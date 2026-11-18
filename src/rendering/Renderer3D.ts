@@ -162,11 +162,13 @@ export class Renderer3D {
     const blocked: [number, number][] = [];
     const exits: [number, number][] = [];
     const furniture: [number, number][] = [];
+    const burning: [number, number][] = [];
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const exit = grid.exitAt(x, y);
         if (exit) (grid.blockedExits.has(exit) ? blocked : exits).push([x, y]);
         if (grid.type(x, y) === CellType.Obstacle) furniture.push([x, y]);
+        if (grid.fire[grid.index(x, y)]) burning.push([x, y]);
         if (grid.type(x, y) !== CellType.Wall) continue;
         let edge = false;
         for (let dy = -1; dy <= 1 && !edge; dy++)
@@ -186,6 +188,14 @@ export class Renderer3D {
       this.layout.add(mesh);
     };
     box(walls, wallHeight, new THREE.MeshStandardMaterial({ color: COLORS.wall, roughness: 0.75 }));
+    box(burning, 0.5, new THREE.MeshStandardMaterial({ color: 0xff7a2f, emissive: 0xff5a1f, emissiveIntensity: 1.2 }), false);
+    if (burning.length) {
+      const cx = burning.reduce((t, [x]) => t + x + 0.5, 0) / burning.length - w / 2;
+      const cz = burning.reduce((t, [, y]) => t + y + 0.5, 0) / burning.length - h / 2;
+      const glow = new THREE.PointLight(0xff7a2f, 30, 14, 1.4);
+      glow.position.set(cx, 1.5, cz);
+      this.layout.add(glow);
+    }
     box(furniture, 0.75, new THREE.MeshStandardMaterial({ color: 0x8a6a48, roughness: 0.8 }));
     box(exits, 0.06, new THREE.MeshStandardMaterial({ color: COLORS.exit, emissive: COLORS.exit, emissiveIntensity: 0.6 }), false);
     box(blocked, wallHeight * 0.9, new THREE.MeshStandardMaterial({ color: COLORS.blocked, emissive: COLORS.blocked, emissiveIntensity: 0.35 }));
@@ -268,6 +278,11 @@ export class Renderer3D {
         c.strokeStyle = "#344a5e";
         c.lineWidth = 1;
         c.strokeRect(x * s + 0.5, y * s + 0.5, s - 1, s - 1);
+        const smoke = grid.hazard[grid.index(x, y)];
+        if (smoke > 0) {
+          c.fillStyle = `rgba(150,156,166,${(0.2 + 0.5 * smoke).toFixed(3)})`;
+          c.fillRect(x * s, y * s, s, s);
+        }
         const density = grid.density[grid.index(x, y)];
         if (density >= 0.015 && grid.walkable(x, y)) {
           c.fillStyle = `hsla(${140 * (1 - density)},85%,55%,${0.12 + 0.6 * density})`;

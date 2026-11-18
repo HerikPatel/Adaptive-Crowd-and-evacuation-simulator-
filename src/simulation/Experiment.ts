@@ -1,8 +1,14 @@
 import { PATH_ALGORITHMS, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { Simulation } from "./Simulation";
+import { FireSpread } from "./FireSpread";
 import { MAPS, type MapId } from "../maps/maps";
 
-export type Scenario = "open" | "closure";
+export type Scenario = "open" | "closure" | "fire";
+export const SCENARIO_LABELS: Record<Scenario, string> = {
+  open: "All exits open",
+  closure: "Exit A closes at 5 s",
+  fire: "Fire spreads from the middle at 5 s",
+};
 export type Screen = "menu" | "simulation" | "results" | "stadium";
 
 /** Application lifecycle and timed inputs, separate from the crowd model. */
@@ -14,6 +20,8 @@ export class Experiment {
   closureMessage = "";
   /** Simulation time when Exit A actually closed; later than 5 s if the doorway was busy. */
   closureTime: number | null = null;
+  /** The spreading fire in the fire scenario; null otherwise. */
+  fire: FireSpread | null = null;
   revision = 0;
 
   begin(count: number, mode: RoutingMode, scenario: Scenario, mapId: MapId = this.simulation.mapId, running = true, movement: MovementMode = this.simulation.movementMode, algorithm: PathAlgorithm = this.simulation.algorithm) {
@@ -21,7 +29,7 @@ export class Experiment {
     if (mode !== "shortest" && mode !== "congestion" && mode !== "flow-field") throw new Error("Unknown routing strategy");
     if (movement !== "predictive" && movement !== "orca") throw new Error("Unknown local movement mode");
     if (!PATH_ALGORITHMS.includes(algorithm)) throw new Error("Unknown path-planning algorithm");
-    if (scenario !== "open" && scenario !== "closure") throw new Error("Unknown scenario");
+    if (scenario !== "open" && scenario !== "closure" && scenario !== "fire") throw new Error("Unknown scenario");
     if (!Object.hasOwn(MAPS, mapId)) throw new Error("Unknown building layout");
     this.simulation.validatePopulation(count, mapId);
     this.simulation.agentCount = count;
@@ -38,6 +46,7 @@ export class Experiment {
     this.closureTriggered = false;
     this.closureMessage = "";
     this.closureTime = null;
+    this.fire = this.scenario === "fire" ? new FireSpread(this.simulation.grid) : null;
     this.screen = "simulation";
     this.simulation.running = running;
     this.revision++;
@@ -80,6 +89,7 @@ export class Experiment {
         if (result.ok) this.closureTime = s.time;
       }
     }
+    this.fire?.update(s);
     s.update(dt);
     if (s.metrics.remainingAgents === 0) this.screen = "results";
   }

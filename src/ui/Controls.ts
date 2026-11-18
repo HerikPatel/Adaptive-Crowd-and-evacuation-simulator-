@@ -144,8 +144,13 @@ export class Controls {
     progress.max = s.agentCount;
     progress.value = m.evacuatedCount;
     document.querySelector("#progress-label")!.textContent = `${m.evacuatedCount} / ${s.agentCount}`;
+    const fire = this.experiment.fire;
     document.querySelector("#scenario-status")!.textContent = this.experiment.scenario === "open"
       ? "Open-exit experiment · Control any exit manually"
+      : fire
+        ? fire.started
+          ? `Fire started at ${fire.startTime!.toFixed(1)} s · ${fire.burning} cells burning · smoke slows people nearby`
+          : `Fire starts in ${Math.max(0, 5 - s.time).toFixed(1)} simulation seconds`
       : this.experiment.closureTriggered
         ? this.experiment.closureMessage
           ? `Scheduled closure skipped: ${this.experiment.closureMessage}`

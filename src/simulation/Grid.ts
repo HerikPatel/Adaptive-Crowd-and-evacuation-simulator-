@@ -16,6 +16,10 @@ export class Grid {
   /** Cells painted as start zones (1). When any exist they replace the map's preset spawn areas. */
   readonly spawnZones: Uint8Array;
   get hasSpawnZones() { return this.spawnZones.includes(1); }
+  /** Burning cells (1): run state like a blocked exit, never part of a saved or edited layout. */
+  readonly fire: Uint8Array;
+  /** Smoke from 0 (none) to 1 (thick), next to fire. Slows walkers and raises route cost. */
+  readonly hazard: Float32Array;
   layoutRevision = 0;
   // Preserve the preset/scenario API while all routing uses the exit collection.
   get exitABlocked() { return this.blockedExits.has("A"); }
@@ -40,8 +44,11 @@ export class Grid {
     const grid = new Grid(this.width, this.height, this.cellSize);
     grid.cells.set(this.cells);
     grid.spawnZones.set(this.spawnZones);
-    if (includeBlocked)
+    if (includeBlocked) {
       for (const id of this.blockedExits) grid.blockedExits.add(id);
+      grid.fire.set(this.fire);
+      grid.hazard.set(this.hazard);
+    }
     return grid;
   }
   constructor(
@@ -51,6 +58,8 @@ export class Grid {
   ) {
     this.cells = new Uint8Array(width * height).fill(CellType.Wall);
     this.spawnZones = new Uint8Array(width * height);
+    this.fire = new Uint8Array(width * height);
+    this.hazard = new Float32Array(width * height);
     this.density = new Float32Array(width * height);
     this.rawDensity = new Float32Array(width * height);
   }
@@ -66,7 +75,7 @@ export class Grid {
   walkable(x: number, y: number) {
     const t = this.type(x, y);
     const exit = this.exitAt(x, y);
-    return t !== CellType.Wall && t !== CellType.Obstacle && !(exit && this.blockedExits.has(exit));
+    return t !== CellType.Wall && t !== CellType.Obstacle && !(exit && this.blockedExits.has(exit)) && !this.fire[this.index(x, y)];
   }
   center(p: GridPosition): Vector2 {
     return { x: (p.x + 0.5) * this.cellSize, y: (p.y + 0.5) * this.cellSize };

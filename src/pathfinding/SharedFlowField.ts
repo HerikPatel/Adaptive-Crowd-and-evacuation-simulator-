@@ -1,4 +1,4 @@
-import { CONFIG, type ExitId } from "../config/simulationConfig";
+import { CONFIG, FIRE, type ExitId } from "../config/simulationConfig";
 import { Grid } from "../simulation/Grid";
 import type { GridPosition } from "../utils/Vector2";
 import type { PathResult } from "./AStar";
@@ -82,7 +82,7 @@ export class SharedFlowFields {
     this.grid = grid;
     this.layoutRevision = grid.layoutRevision;
     this.sampledAt = time;
-    this.entryCosts = Float64Array.from(grid.density, density => 1 + CONFIG.congestionWeight * density);
+    this.entryCosts = Float64Array.from(grid.density, (density, i) => 1 + CONFIG.congestionWeight * density + FIRE.smokeRouteCost * grid.hazard[i]);
     this.exits = grid.exitIds.filter(id => !grid.blockedExits.has(id));
     this.fields.clear();
     this.snapshots++;

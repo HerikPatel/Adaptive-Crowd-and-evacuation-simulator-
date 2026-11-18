@@ -44,6 +44,22 @@ export class Renderer {
         c.strokeRect(x * s, y * s, s, s);
       }
     this.heatmap.draw(c, grid, revision);
+    // Smoke (grey haze) and fire (flickering cells) from the fire scenario.
+    for (let y = 0; y < grid.height; y++)
+      for (let x = 0; x < grid.width; x++) {
+        const i = grid.index(x, y);
+        if (grid.hazard[i] > 0) {
+          c.fillStyle = `rgba(150,156,166,${(0.15 + 0.45 * grid.hazard[i]).toFixed(3)})`;
+          c.fillRect(x * s, y * s, s, s);
+        }
+        if (grid.fire[i]) {
+          const flicker = 0.5 + 0.5 * Math.sin(time * 9 + x * 1.7 + y * 2.3);
+          c.fillStyle = `rgb(${230 + 25 * flicker | 0},${90 + 70 * flicker | 0},40)`;
+          c.fillRect(x * s, y * s, s, s);
+          c.fillStyle = "#ffe08a";
+          c.fillRect(x * s + 6, y * s + 6, s - 12, s - 12);
+        }
+      }
     // Furniture: solid like a wall, drawn as a block on the floor.
     for (let y = 0; y < grid.height; y++)
       for (let x = 0; x < grid.width; x++) {

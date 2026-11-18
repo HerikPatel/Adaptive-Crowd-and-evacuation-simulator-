@@ -1,6 +1,6 @@
 import { ALGORITHM_LABELS, PATH_ALGORITHMS, ROUTING_LABELS, MOVEMENT_LABELS, type PathAlgorithm, type RoutingMode } from "../config/simulationConfig";
 import { MAPS } from "../maps/maps";
-import type { Experiment } from "../simulation/Experiment";
+import { SCENARIO_LABELS, type Experiment } from "../simulation/Experiment";
 import { serializeLayout } from "../simulation/LayoutFile";
 import {
   comparisonCsv,
@@ -76,7 +76,7 @@ export class BuildingComparisonPanel {
     const r = this.request();
     const runs = r.variants.length;
     this.root.querySelector("#comparison-summary")!.textContent = runs
-      ? `${runs} run${runs === 1 ? "" : "s"} · ${r.population} people · ${MAPS[r.mapId].name}${r.layout ? " (edited)" : ""} · ${r.scenario === "closure" ? "Exit A closes at 5 s" : "All exits open"} · ${MOVEMENT_LABELS[r.movement]}`
+      ? `${runs} run${runs === 1 ? "" : "s"} · ${r.population} people · ${MAPS[r.mapId].name}${r.layout ? " (edited)" : ""} · ${SCENARIO_LABELS[r.scenario]} · ${MOVEMENT_LABELS[r.movement]}`
       : "Choose at least one strategy, and an algorithm for Shortest Path or Congestion Aware.";
   }
 
