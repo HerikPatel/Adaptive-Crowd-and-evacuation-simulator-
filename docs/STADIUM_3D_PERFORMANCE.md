@@ -31,6 +31,17 @@ npm run test:browser -- tests/browser/stadium-3d-performance.spec.ts
 
 Both cases met the Phase 2 target of at least 30 rendering FPS at 1× on the tested M1 Mac. These are short local measurements, not a guarantee for every browser, thermal state, display refresh rate, or GPU. The browser test asserts that measurements are produced; it intentionally does not fail slower CI machines against the M1-specific target.
 
+## Clarity-update verification — 2026-11-18
+
+The camera, bowl geometry, upper-deck alignment, cutaway layers, field detail, and lighting were revised without changing simulation or routing behavior. A fresh local Chrome run produced:
+
+| Spectators | Render FPS | Mean 3D render work |
+| ---: | ---: | ---: |
+| 100 | 60.0 | 3.79 ms/frame |
+| 1,000 | 59.9 | 4.37 ms/frame |
+
+Both remain above the documented 30 FPS target. The browser harness records `stadium-3d-overview.png`, `stadium-3d-top-down.png`, `stadium-3d-full-architecture.png`, `stadium-3d-night.png`, `stadium-3d-linked.png`, and `stadium-3d-transfer-progress.png` in the Playwright test output.
+
 ## Rendering boundaries
 
 - Only the active 2D or 3D renderer is updated. The fixed-step simulation runs once and supplies a read-only frame to the active renderer.
@@ -38,7 +49,8 @@ Both cases met the Phase 2 target of at least 30 rendering FPS at 1× on the tes
 - People use instanced procedural figures at close range and dots at distance. Seated poses use seat state; walking stride uses simulation distance, so waiting and paused runs freeze without an independent animation clock. Destination color remains visible while white/red rings and a small marker communicate waiting, blockage, selection, and rerouting.
 - Transfer positions and elevations use the simulation's actual edge progress. Landing backpressure therefore stops the visible dot instead of starting an independent animation.
 - Physical paths, seats, elevations and distance sampling live in `StadiumPhysicalGeometry.ts` and are shared by routing, movement, 2D, and 3D. `Stadium3DGeometry.ts` contains presentation-only stadium form helpers. Generated connector decks, stair treads, landings and rails follow the actual navigation paths. Dimensions remain illustrative assumptions, not surveyed stadium measurements.
-- The default evacuation cutaway hides obstructing exterior architecture; Full architecture restores it. Person selection automatically frames/follows the live simulation position and returns to Overview when selection clears or evacuation completes.
+- The default evacuation cutaway hides façade and landmark detail while retaining people, gates, connectors, and selected routes; Full architecture restores the exterior shell, scoreboard, and light towers.
+- Camera exploration is free by default. Selection never moves the camera. Following is explicit, manual interaction or any preset stops it, evacuation preserves the final viewpoint, and switching between 2D and 3D preserves camera and cutaway state.
 - Day and stadium-light modes change presentation lighting only. They do not pause, advance, or alter the simulation.
 
 The deterministic headless baseline script completed its 100-person, 1,000-person, closure, reopening and replay scenarios in 37.7 seconds of wall time on the same machine. That is simulation throughput and is intentionally reported separately from rendering FPS.

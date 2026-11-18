@@ -6,7 +6,8 @@ export const STADIUM_3D_MODEL = Object.freeze({
   fieldLength: 100,
   fieldWidth: 48,
   lowerInnerRadius: 27,
-  lowerOuterRadius: 50,
+  lowerOuterRadius: 46,
+  bowlHalfStraight: 50,
   concourseElevation: PHYSICAL_STADIUM_ASSUMPTIONS.concourseElevation,
   upperDeckElevation: PHYSICAL_STADIUM_ASSUMPTIONS.upperDeckMinElevation,
   exteriorElevation: 0.12,
@@ -21,19 +22,28 @@ export function mapToGround(point: Point): { x: number; z: number } {
 
 /** Capsule aligned north/south with the physical football field. */
 export function capsulePoint(t: number, radius: number): { x: number; z: number } {
-  const halfStraight = STADIUM_3D_MODEL.fieldLength / 2 - STADIUM_3D_MODEL.fieldWidth / 2;
+  const halfStraight = STADIUM_3D_MODEL.bowlHalfStraight;
   const straightLength = halfStraight * 2;
-  const perimeter = straightLength * 2 + Math.PI * radius * 2;
+  // The mapped lower bowl is tighter behind the end zones than a circular
+  // running-track capsule, then deepens toward the exterior seating rows.
+  const endRadius = 12 + (radius - STADIUM_3D_MODEL.lowerInnerRadius) /
+    (STADIUM_3D_MODEL.lowerOuterRadius - STADIUM_3D_MODEL.lowerInnerRadius) * 32;
+  // Parameterize every concentric ring against one reference perimeter. Using
+  // each ring's own circumference puts its straight/curve transitions at
+  // different values of `t`, so a mesh joining two rings twists across the
+  // stadium instead of forming a seating band.
+  const referenceArcLength = Math.PI * STADIUM_3D_MODEL.lowerOuterRadius;
+  const perimeter = straightLength * 2 + referenceArcLength * 2;
   let distance = ((t % 1) + 1) % 1 * perimeter;
   if (distance <= straightLength) return { x: -radius, z: -halfStraight + distance };
   distance -= straightLength;
-  if (distance <= Math.PI * radius) {
-    const angle = Math.PI + distance / radius;
-    return { x: radius * Math.sin(angle), z: halfStraight - radius * Math.cos(angle) };
+  if (distance <= referenceArcLength) {
+    const angle = Math.PI - distance / referenceArcLength * Math.PI;
+    return { x: radius * Math.cos(angle), z: halfStraight + endRadius * Math.sin(angle) };
   }
-  distance -= Math.PI * radius;
+  distance -= referenceArcLength;
   if (distance <= straightLength) return { x: radius, z: halfStraight - distance };
   distance -= straightLength;
-  const angle = distance / radius;
-  return { x: -radius * Math.cos(angle), z: -halfStraight - radius * Math.sin(angle) };
+  const angle = -distance / referenceArcLength * Math.PI;
+  return { x: radius * Math.cos(angle), z: -halfStraight + endRadius * Math.sin(angle) };
 }

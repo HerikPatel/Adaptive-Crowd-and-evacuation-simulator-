@@ -3,7 +3,7 @@ import type { NavigationEdge } from "../maps/stadiumNavigation";
 import type { StadiumRouter, StadiumRouteStep } from "../pathfinding/StadiumRouter";
 import type { StadiumRenderFrame, StadiumRenderPerson } from "../simulation/StadiumSimulation";
 import { capsulePoint, mapToGround, STADIUM_3D_MODEL } from "./Stadium3DGeometry";
-import { PHYSICAL_STADIUM_BOUNDS, STADIUM_PHYSICAL_SEATS, type PhysicalPoint } from "../simulation/StadiumPhysicalGeometry";
+import { PHYSICAL_STADIUM_BOUNDS, type PhysicalPoint } from "../simulation/StadiumPhysicalGeometry";
 import { destinationColor, levelShowsSurface, STADIUM_BLOCKED_COLOR, STADIUM_DESTINATIONS,
   STADIUM_REFERENCE_ROUTE_COLOR, type StadiumViewLevel } from "./StadiumVisuals";
 
@@ -71,23 +71,27 @@ export class Stadium3DView {
     this.renderer = renderer;
 
     const scene = new THREE.Scene(); this.scene = scene;
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500); camera.up.set(0, 1, 0); this.camera = camera;
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 800); camera.up.set(0, 1, 0); this.camera = camera;
     const controls = new controlsModule.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.dampingFactor = 0.07; controls.minDistance = 7;
-    controls.maxDistance = 320; controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 5, 0); this.controls = controls;
+    controls.enableDamping = true; controls.dampingFactor = 0.07; controls.enablePan = true; controls.minDistance = 7;
+    controls.maxDistance = 520; controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 5, 0); this.controls = controls;
+    controls.addEventListener("start", () => {
+      this.setFollowing(false);
+      this.container.dataset.camera = "free";
+    });
 
-    this.ambient = new THREE.HemisphereLight(0xdfefff, 0x33402f, 2.3); scene.add(this.ambient);
-    this.sun = new THREE.DirectionalLight(0xfff4dc, 3.5); this.sun.position.set(-90, 120, -80); this.sun.castShadow = true;
+    this.ambient = new THREE.HemisphereLight(0xdfefff, 0x33402f, 1.35); scene.add(this.ambient);
+    this.sun = new THREE.DirectionalLight(0xfff4dc, 2.4); this.sun.position.set(-90, 120, -80); this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048); this.sun.shadow.camera.left = -120; this.sun.shadow.camera.right = 120;
     this.sun.shadow.camera.top = 140; this.sun.shadow.camera.bottom = -140; this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 320;
     scene.add(this.sun);
-    this.buildArchitecture(); this.buildCrowd(); this.setLighting("day"); this.preset("overview");
+    this.buildArchitecture(); this.buildCrowd(); this.setCutaway(this.cutaway); this.setLighting("day"); this.preset("reset");
     renderer.domElement.addEventListener("click", event => this.pick(event));
   }
 
   setSelection(personId: number | null, sectionId: string | null) {
     this.selectedPersonId = personId; this.selectedSectionId = sectionId;
-    if (personId === null) this.following = false;
+    if (personId === null) this.setFollowing(false);
   }
 
   setLevel(level: StadiumViewLevel) {
@@ -99,9 +103,10 @@ export class Stadium3DView {
     for (const object of this.architecture?.children ?? []) {
       const surface = object.userData.surface as SurfaceId | "all" | undefined;
       const connection = Boolean(object.userData.connection);
+      const fullArchitecture = Boolean(object.userData.fullArchitecture);
       const levelVisible = this.level === "overview" || surface === "all" ||
         (this.level === "connections" ? connection : surface ? levelShowsSurface(this.level, surface as SurfaceId) : true);
-      object.visible = levelVisible && !((this.cutaway || this.following) && surface === "exterior");
+      object.visible = levelVisible && !((this.cutaway || this.following) && fullArchitecture);
     }
   }
 
@@ -111,13 +116,13 @@ export class Stadium3DView {
     this.container.dataset.lighting = mode;
     if (!this.THREE || !this.scene || !this.renderer || !this.sun || !this.ambient) return;
     const night = mode === "night";
-    this.scene.background = new this.THREE.Color(night ? 0x07101f : 0x91b9da);
-    this.scene.fog = new this.THREE.Fog(night ? 0x07101f : 0xb9d0df, night ? 170 : 220, night ? 300 : 340);
-    this.sun.intensity = night ? 0.12 : 3.5; this.ambient.intensity = night ? 0.42 : 2.3;
+    this.scene.background = new this.THREE.Color(night ? 0x07101f : 0xb9cbd6);
+    this.scene.fog = new this.THREE.Fog(night ? 0x07101f : 0xcbd5da, night ? 240 : 300, night ? 520 : 620);
+    this.sun.intensity = night ? 0.2 : 2.4; this.ambient.intensity = night ? 0.68 : 1.35;
     this.ambient.color.setHex(night ? 0x3d4f76 : 0xdfefff); this.ambient.groundColor.setHex(night ? 0x10141c : 0x33402f);
-    for (const light of this.floodLights) light.intensity = night ? 110 : 0;
-    for (const material of this.emissiveMaterials) material.emissiveIntensity = night ? 3.2 : 0.25;
-    this.renderer.toneMappingExposure = night ? 0.88 : 1.05;
+    for (const light of this.floodLights) light.intensity = night ? 1200 : 0;
+    for (const material of this.emissiveMaterials) material.emissiveIntensity = night ? 0.9 : 0.18;
+    this.renderer.toneMappingExposure = night ? 0.96 : 0.96;
   }
 
   setFollowing(value: boolean) { this.following = value && this.selectedPersonId !== null; this.applyArchitectureVisibility(); }
@@ -130,21 +135,12 @@ export class Stadium3DView {
     this.controls.update(); this.setFollowing(follow); this.container.dataset.camera = follow ? "person-follow" : "person-seat";
   }
 
-  focusSection(sectionId: string) {
-    if (!this.camera || !this.controls || !this.THREE) return;
-    const seats = STADIUM_PHYSICAL_SEATS.get(sectionId); if (!seats?.length) return;
-    const center = seats.reduce((sum, seat) => ({ x: sum.x + seat.position.x, y: sum.y + seat.position.y, z: sum.z + seat.position.z }), { x: 0, y: 0, z: 0 });
-    center.x /= seats.length; center.y /= seats.length; center.z /= seats.length;
-    const point = this.physicalVector(center);
-    this.controls.target.copy(point); this.camera.position.copy(point).add(new this.THREE.Vector3(18, 14, 20));
-    this.controls.update(); this.setFollowing(false); this.container.dataset.camera = "section";
-  }
-
-  preset(name: "overview" | "connections" | "gates" | "fit") {
+  preset(name: "reset" | "top-down" | "connections" | "gates") {
     if (!this.camera || !this.controls) return;
-    const positions = { overview: [145, 105, 155], connections: [-115, 72, 105], gates: [150, 46, 5], fit: [140, 100, 150] } as const;
+    const positions = { reset: [155, 112, 178], "top-down": [0, 355, 0.01], connections: [-135, 85, 120], gates: [185, 58, 5] } as const;
     const [x, y, z] = positions[name]; this.camera.position.set(x, y, z); this.container.dataset.camera = name;
     this.controls.target.set(0, name === "gates" ? 4 : 6, 0); this.controls.update(); this.following = false;
+    this.applyArchitectureVisibility();
   }
 
   render(frame: StadiumRenderFrame) {
@@ -157,8 +153,9 @@ export class Stadium3DView {
   private physicalVector(point: PhysicalPoint) {
     return new this.THREE!.Vector3(point.x - PHYSICAL_STADIUM_BOUNDS.centerX, point.y, point.z - PHYSICAL_STADIUM_BOUNDS.centerZ);
   }
-  private addLayer(object: import("three").Object3D, surface: SurfaceId | "all", connection = false) {
-    object.userData.surface = surface; object.userData.connection = connection; this.architecture!.add(object);
+  private addLayer(object: import("three").Object3D, surface: SurfaceId | "all", connection = false, fullArchitecture = false) {
+    object.userData.surface = surface; object.userData.connection = connection; object.userData.fullArchitecture = fullArchitecture;
+    this.architecture!.add(object);
   }
   private standard(color: number, roughness = 0.82, metalness = 0.04) {
     return new this.THREE!.MeshStandardMaterial({ color, roughness, metalness });
@@ -188,23 +185,39 @@ export class Stadium3DView {
       const line = new T.Mesh(new T.PlaneGeometry(0.1, STADIUM_3D_MODEL.fieldLength), lineMaterial);
       line.rotation.x = -Math.PI / 2; line.position.set(x, 0.04, 0); fieldGroup.add(line);
     }
+    for (const z of [-STADIUM_3D_MODEL.fieldLength / 2 + 0.18, STADIUM_3D_MODEL.fieldLength / 2 - 0.18]) {
+      const line = new T.Mesh(new T.PlaneGeometry(STADIUM_3D_MODEL.fieldWidth, 0.12), lineMaterial);
+      line.rotation.x = -Math.PI / 2; line.position.set(0, 0.04, z); fieldGroup.add(line);
+    }
+    for (let z = -41.5; z <= 41.5; z += 8.3) for (const x of [-6.2, 6.2]) {
+      const hash = new T.Mesh(new T.PlaneGeometry(0.7, 0.08), lineMaterial);
+      hash.rotation.x = -Math.PI / 2; hash.position.set(x, 0.045, z); fieldGroup.add(hash);
+    }
+    const goalMaterial = this.standard(0xf1c84b, 0.45, 0.42);
+    for (const z of [-54, 54]) {
+      const stem = this.cylinderBetween(new T.Vector3(0, 0, z), new T.Vector3(0, 3, z), 0.09, goalMaterial, 10);
+      const bar = this.cylinderBetween(new T.Vector3(-3, 3, z), new T.Vector3(3, 3, z), 0.08, goalMaterial, 10);
+      fieldGroup.add(stem, bar);
+      for (const x of [-3, 3]) fieldGroup.add(this.cylinderBetween(new T.Vector3(x, 3, z), new T.Vector3(x, 8, z), 0.07, goalMaterial, 10));
+    }
     this.addLayer(fieldGroup, "lower-bowl");
   }
 
   private buildLowerBowl() {
     const T = this.THREE!, bowl = new T.Group();
-    const base = new T.Mesh(this.bowlBandGeometry(26, 53, 0.4, 9, 180), this.standard(0x969a98, 0.94));
+    const inner = STADIUM_3D_MODEL.lowerInnerRadius, outer = STADIUM_3D_MODEL.lowerOuterRadius;
+    const base = new T.Mesh(this.bowlBandGeometry(inner - 1, outer + 1.5, 0.45, 9.35, 180), this.standard(0x858d91, 0.94));
     base.receiveShadow = true; base.castShadow = true; bowl.add(base);
-    const colors = [0x781c25, 0x9f2631, 0x661820, 0xb12b37], rows = 26, inner = 27, outer = 50;
+    const colors = [0x7b2630, 0x8f2d38, 0x74232c, 0x96333d], rows = 26;
     for (let row = 0; row < rows; row++) {
-      const a = row / rows, b = (row + 0.78) / rows;
+      const a = row / rows, b = (row + 0.94) / rows;
       const mesh = new T.Mesh(this.bowlBandGeometry(inner + (outer - inner) * a, inner + (outer - inner) * b,
         1.1 + a * 8.1, 1.1 + b * 8.1, 180), this.standard(colors[row % colors.length], 0.73));
       mesh.receiveShadow = true; mesh.castShadow = row % 3 === 0; bowl.add(mesh);
     }
     const aisleMaterial = new T.MeshStandardMaterial({ color: 0xc7c4b9, roughness: 0.95 });
     for (let i = 0; i < 24; i++) {
-      const a = capsulePoint(i / 24, 27), b = capsulePoint(i / 24, 50.5);
+      const a = capsulePoint(i / 24, inner), b = capsulePoint(i / 24, outer + 0.25);
       const aisle = this.cylinderBetween(new T.Vector3(a.x, 1.18, a.z), new T.Vector3(b.x, 9.3, b.z), 0.18, aisleMaterial, 5);
       aisle.castShadow = true; bowl.add(aisle);
     }
@@ -213,62 +226,69 @@ export class Stadium3DView {
 
   private buildUpperDecks() {
     const T = this.THREE!;
-    for (const [surface, sign] of [["upper-east", -1], ["upper-west", 1]] as const) {
+    for (const [surface, sign] of [["upper-east", 1], ["upper-west", -1]] as const) {
       const deck = new T.Group(), supports = this.standard(0xb9b8b2, 0.92);
-      for (let i = -5; i <= 5; i++) { const column = new T.Mesh(new T.BoxGeometry(0.55, 11, 0.55), supports);
-        column.position.set(sign * 53, 6.8, i * 9); column.castShadow = true; deck.add(column); }
-      const underside = new T.Mesh(new T.BoxGeometry(18, 0.7, 108), this.standard(0x777b7d, 0.88));
-      underside.position.set(sign * 61, 11.2, 0); underside.rotation.z = sign * 0.14; underside.castShadow = true; deck.add(underside);
-      for (let row = 0; row < 14; row++) { const step = new T.Mesh(new T.BoxGeometry(0.85, 0.34, 104), this.standard(row % 3 === 0 ? 0x681923 : 0xa32632, 0.74));
-        step.position.set(sign * (51 + row * 1.25), 11.7 + row * 0.48, 0); step.castShadow = true; step.receiveShadow = true; deck.add(step); }
+      for (let i = -5; i <= 5; i++) { const column = new T.Mesh(new T.BoxGeometry(0.5, 13.5, 0.5), supports);
+        column.position.set(sign * 59, 6.75, i * 9); column.castShadow = true; deck.add(column); }
+      const underside = new T.Mesh(new T.BoxGeometry(14.5, 0.55, 102), this.standard(0x68747a, 0.9));
+      underside.position.set(sign * 64, 15.35, 0); underside.rotation.z = sign * 0.205; underside.castShadow = true; deck.add(underside);
+      for (let row = 0; row < 15; row++) { const step = new T.Mesh(new T.BoxGeometry(0.86, 0.3, 100), this.standard(row % 4 === 0 ? 0x70232c : 0x91303a, 0.76));
+        step.position.set(sign * (58 + row * 0.86), 14.2 + row * 0.2, 0); step.castShadow = true; step.receiveShadow = true; deck.add(step); }
+      const aisleMaterial = this.standard(0xb8b7b0, 0.94);
+      for (let z = -42; z <= 42; z += 14) {
+        const aisle = new T.Mesh(new T.BoxGeometry(14.2, 0.12, 0.55), aisleMaterial);
+        aisle.position.set(sign * 64, 15.52, z); aisle.rotation.z = sign * 0.205; aisle.receiveShadow = true; deck.add(aisle);
+      }
       const rail = new T.Mesh(new T.BoxGeometry(0.1, 0.8, 106), new T.MeshStandardMaterial({ color: 0xcbd0d1, metalness: 0.72, roughness: 0.32 }));
-      rail.position.set(sign * 50.2, 12.4, 0); deck.add(rail); this.addLayer(deck, surface);
+      rail.position.set(sign * 57.45, 14.7, 0); deck.add(rail);
+      const rearWall = new T.Mesh(new T.BoxGeometry(0.22, 1.05, 102), this.standard(0x59656c, 0.75, 0.18));
+      rearWall.position.set(sign * 70.55, 17.55, 0); deck.add(rearWall); this.addLayer(deck, surface);
     }
   }
 
   private buildFacadeAndPlazas() {
-    const T = this.THREE!, exterior = new T.Group(), concrete = this.standard(0xb2b0aa, 0.94), metal = this.standard(0x4e555b, 0.42, 0.66);
+    const T = this.THREE!, facade = new T.Group(), gates = new T.Group(), concrete = this.standard(0x969da0, 0.94), metal = this.standard(0x414c53, 0.42, 0.66);
     const radius = 63, segments = 140;
     for (let i = 0; i < segments; i++) { const a = capsulePoint(i / segments, radius), b = capsulePoint((i + 1) / segments, radius);
-      const panel = this.boxBetweenXZ(a, b, 5.4, 0.34, i % 7 === 0 ? metal : concrete); panel.position.y = 2.7; panel.castShadow = true; panel.receiveShadow = true; exterior.add(panel); }
+      const panel = this.boxBetweenXZ(a, b, 5.4, 0.34, i % 7 === 0 ? metal : concrete); panel.position.y = 2.7; panel.castShadow = true; panel.receiveShadow = true; facade.add(panel); }
     const glass = new T.MeshStandardMaterial({ color: 0x537687, metalness: 0.34, roughness: 0.2, transparent: true, opacity: 0.74 });
     for (let i = 0; i < segments; i += 4) { const a = capsulePoint(i / segments, 63.4), b = capsulePoint((i + 2) / segments, 63.4);
-      const window = this.boxBetweenXZ(a, b, 1.15, 0.08, glass); window.position.y = 3.15; exterior.add(window); }
+      const window = this.boxBetweenXZ(a, b, 1.15, 0.08, glass); window.position.y = 3.15; facade.add(window); }
     for (const gate of STADIUM.gates) {
       const data = STADIUM_DESTINATIONS[gate.id as keyof typeof STADIUM_DESTINATIONS], point = mapToGround(gate.at);
       const toward = new T.Vector2(-point.x, -point.z).normalize(), angle = Math.atan2(toward.x, toward.y);
       const plaza = new T.Mesh(new T.PlaneGeometry(STADIUM_3D_MODEL.plazaSize, STADIUM_3D_MODEL.plazaSize * 0.72),
         new T.MeshStandardMaterial({ map: this.paverTexture(), color: 0xd2d0c8, roughness: 0.96 }));
-      plaza.rotation.x = -Math.PI / 2; plaza.rotation.z = angle; plaza.position.set(point.x, 0.015, point.z); plaza.receiveShadow = true; exterior.add(plaza);
+      plaza.rotation.x = -Math.PI / 2; plaza.rotation.z = angle; plaza.position.set(point.x, 0.015, point.z); plaza.receiveShadow = true; gates.add(plaza);
       const canopyColor = Number.parseInt(data.color.slice(1), 16);
       const canopyMaterial = new T.MeshStandardMaterial({ color: canopyColor, emissive: canopyColor, emissiveIntensity: 0.25, roughness: 0.48, metalness: 0.24 });
       this.emissiveMaterials.push(canopyMaterial);
       const canopy = new T.Mesh(new T.BoxGeometry(5.3, 0.25, 2.2), canopyMaterial);
-      canopy.position.set(point.x, 3.35, point.z); canopy.rotation.y = angle; canopy.castShadow = true; exterior.add(canopy);
+      canopy.position.set(point.x, 3.35, point.z); canopy.rotation.y = angle; canopy.castShadow = true; gates.add(canopy);
       for (const offset of [-2.1, 2.1]) { const pillar = new T.Mesh(new T.BoxGeometry(0.22, 3.3, 0.22), metal);
-        pillar.position.set(point.x + Math.cos(angle) * offset, 1.65, point.z - Math.sin(angle) * offset); pillar.castShadow = true; exterior.add(pillar); }
-      const label = this.labelSprite(data.label, data.color); label.position.set(point.x, 4.45, point.z); exterior.add(label);
+        pillar.position.set(point.x + Math.cos(angle) * offset, 1.65, point.z - Math.sin(angle) * offset); pillar.castShadow = true; gates.add(pillar); }
+      const label = this.labelSprite(data.label, data.color); label.position.set(point.x, 4.45, point.z); gates.add(label);
       for (let i = -2; i <= 2; i++) { const bollard = new T.Mesh(new T.CylinderGeometry(0.09, 0.11, 0.72, 8), metal);
-        bollard.position.set(point.x + Math.cos(angle) * i * 0.72 + toward.x * 2, 0.36, point.z - Math.sin(angle) * i * 0.72 + toward.y * 2); exterior.add(bollard); }
+        bollard.position.set(point.x + Math.cos(angle) * i * 0.72 + toward.x * 2, 0.36, point.z - Math.sin(angle) * i * 0.72 + toward.y * 2); gates.add(bollard); }
     }
-    this.addLayer(exterior, "exterior");
+    this.addLayer(facade, "exterior", false, true); this.addLayer(gates, "exterior");
   }
 
   private buildScoreboardAndLights() {
     const T = this.THREE!, landmarks = new T.Group(), frame = this.standard(0x252a2f, 0.42, 0.7);
-    const board = new T.Mesh(new T.BoxGeometry(24, 8, 0.8), frame); board.position.set(0, 15, 79); board.castShadow = true; landmarks.add(board);
+    const board = new T.Mesh(new T.BoxGeometry(24, 8, 0.8), frame); board.position.set(0, 15, 126); board.castShadow = true; landmarks.add(board);
     const screenMaterial = new T.MeshStandardMaterial({ color: 0x132330, emissive: 0x244a63, emissiveIntensity: 0.25, roughness: 0.28 });
     this.emissiveMaterials.push(screenMaterial); const screen = new T.Mesh(new T.PlaneGeometry(22, 6.5), screenMaterial);
-    screen.position.set(0, 15, 78.55); screen.rotation.y = Math.PI; landmarks.add(screen);
-    for (const x of [-9, 9]) { const support = new T.Mesh(new T.BoxGeometry(0.75, 11, 0.75), frame); support.position.set(x, 7, 79); support.castShadow = true; landmarks.add(support); }
+    screen.position.set(0, 15, 125.55); screen.rotation.y = Math.PI; landmarks.add(screen);
+    for (const x of [-9, 9]) { const support = new T.Mesh(new T.BoxGeometry(0.75, 11, 0.75), frame); support.position.set(x, 7, 126); support.castShadow = true; landmarks.add(support); }
     const lampMaterial = new T.MeshStandardMaterial({ color: 0xe8edf0, emissive: 0xdcecff, emissiveIntensity: 0.25 }); this.emissiveMaterials.push(lampMaterial);
-    for (const [x, z] of [[-72, -78], [72, -78], [-72, 78], [72, 78]] as const) {
+    for (const [x, z] of [[-72, -105], [72, -105], [-72, 105], [72, 105]] as const) {
       const tower = new T.Mesh(new T.CylinderGeometry(0.28, 0.48, 34, 8), frame); tower.position.set(x, 17, z); tower.castShadow = true; landmarks.add(tower);
       const rack = new T.Mesh(new T.BoxGeometry(9, 1.8, 0.7), lampMaterial); rack.position.set(x, 34.1, z); rack.lookAt(0, 4, 0); landmarks.add(rack);
       const flood = new T.SpotLight(0xe8f1ff, 0, 240, Math.PI / 5, 0.42, 1.3); flood.position.set(x, 34, z); flood.target.position.set(0, 0, 0);
       this.scene!.add(flood, flood.target); this.floodLights.push(flood);
     }
-    this.addLayer(landmarks, "exterior");
+    this.addLayer(landmarks, "exterior", false, true);
   }
 
   private buildNavigationArchitecture() {
@@ -464,7 +484,9 @@ export class Stadium3DView {
   private updateFollow(frame: StadiumRenderFrame) {
     if (!this.following || this.selectedPersonId === null || !this.camera || !this.controls) return;
     const person = frame.people.find(candidate => candidate.id === this.selectedPersonId);
-    if (!person || person.movementState === "evacuated") { this.following = false; this.preset("overview"); this.onClearSelection(); return; }
+    if (!person || person.movementState === "evacuated") {
+      this.setFollowing(false); this.container.dataset.camera = "free"; this.onClearSelection(); return;
+    }
     const point = this.personWorld(person);
     const ahead = new this.THREE!.Vector3(person.orientation.x, 0, person.orientation.z).normalize().multiplyScalar(3);
     const offset = new this.THREE!.Vector3(-person.orientation.x * 5 + 3, 3.8, -person.orientation.z * 5 + 3);

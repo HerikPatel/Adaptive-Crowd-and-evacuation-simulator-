@@ -6,7 +6,7 @@ This checklist tracks the implementation of the shared, simulation-owned SHI Sta
 
 - [x] Confirm north-up SHI Stadium-inspired layout and four paired gate destinations.
 - [x] Confirm deterministic seeded seating, nearest-side-aisle access, and seated occupancy behavior.
-- [x] Confirm automatic person focus/follow, selection clearing, cutaway, and lighting behavior.
+- [x] Confirm opt-in person follow, viewpoint-preserving selection, cutaway, and lighting behavior.
 - [x] Record current 100-person seeded individual-profile outcome.
 - [x] Record current 1,000-person uniform-profile outcome.
 - [x] Record current A/B timed-closure outcome.
@@ -56,14 +56,14 @@ This checklist tracks the implementation of the shared, simulation-owned SHI Sta
 
 ## 5. Selection, cameras, and workspace
 
-- [x] Remove the manual Follow button.
-- [x] Auto-frame a selected seated person before the run.
-- [x] Auto-follow a selected person after the run starts, including dropdown selection.
-- [x] Clear selection and return to Overview on repeated person click, empty-space click, feature selection, or evacuation.
+- [x] Keep free camera exploration as the default and expose an explicit Follow selected person control.
+- [x] Keep selection independent from camera framing before and during a run.
+- [x] Stop following on manual orbit, pan, zoom, or preset selection.
+- [x] Clear selection or stop following on evacuation without resetting the viewpoint.
 - [x] Temporarily hide camera-obstructing structures during follow.
 - [x] Frame selected sections and their distinct committed routes.
-- [x] Reset the 3D camera when leaving 3D while preserving shared selection.
-- [x] Reset cutaway on 3D entry and preserve lighting choice across view switches.
+- [x] Preserve the 3D camera when switching between 2D and 3D.
+- [x] Preserve cutaway and lighting choices across view switches.
 - [x] Keep a compact playback/status bar above the prominent viewport.
 - [x] Separate collapsed configuration/profile editing from visible journey information.
 

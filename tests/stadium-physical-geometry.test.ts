@@ -2,6 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createStadiumNetwork } from "../src/maps/stadiumNavigation";
 import { createPhysicalPath, samplePhysicalPath, STADIUM_PHYSICAL_SEATS, transferDuration } from "../src/simulation/StadiumPhysicalGeometry";
+import { capsulePoint, STADIUM_3D_MODEL } from "../src/ui/Stadium3DGeometry";
+
+test("3D stadium capsule is continuous and keeps concentric bowl rings aligned", () => {
+  const outerRadius = 50, innerRadius = 26, samples = 720;
+  let previous = capsulePoint(0, outerRadius);
+  for (let index = 1; index <= samples; index++) {
+    const t = index / samples;
+    const outer = capsulePoint(t, outerRadius);
+    const inner = capsulePoint(t, innerRadius);
+    assert.ok(Math.hypot(outer.x - previous.x, outer.z - previous.z) < 1,
+      `capsule jumped near t=${t}`);
+    const ringGap = Math.hypot(outer.x - inner.x, outer.z - inner.z);
+    assert.ok(ringGap > 15 && ringGap < 45, `rings lost phase alignment near t=${t}`);
+    previous = outer;
+  }
+  assert.deepEqual(capsulePoint(0, outerRadius), capsulePoint(1, outerRadius));
+  assert.deepEqual(capsulePoint(0, STADIUM_3D_MODEL.lowerOuterRadius),
+    { x: -STADIUM_3D_MODEL.lowerOuterRadius, z: -STADIUM_3D_MODEL.bowlHalfStraight });
+});
 
 test("cumulative physical sampling handles unequal segments exactly", () => {
   const path = createPhysicalPath("unequal", [

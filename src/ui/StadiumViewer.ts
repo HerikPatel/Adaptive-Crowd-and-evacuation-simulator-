@@ -70,7 +70,7 @@ export class StadiumViewer {
           <g id="stadium-seating-detail" aria-hidden="true"></g><g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-committed-routes" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g><g id="stadium-state-markers" aria-hidden="true"></g>
         </svg><div id="stadium-3d" class="stadium-3d" hidden><div id="stadium-3d-loading">Choose 3D to load the SHI Stadium-inspired scene.</div></div></div>
         <div id="stadium-3d-controls" class="stadium-3d-controls" hidden>
-          <div role="group" aria-label="3D camera"><button type="button" data-camera="overview">Overview</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button><button type="button" data-camera="fit">Reset to fit</button></div>
+          <div role="group" aria-label="3D camera"><button type="button" id="stadium-follow-person" aria-pressed="false" disabled>Follow selected person</button><button type="button" data-camera="reset">Reset</button><button type="button" data-camera="top-down">Top-down</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button></div>
           <div class="stadium-lighting-controls" role="group" aria-label="3D lighting"><button type="button" data-lighting="day" aria-pressed="true">Day</button><button type="button" data-lighting="night" aria-pressed="false">Stadium lights</button></div>
           <div class="stadium-cutaway-controls" role="group" aria-label="3D structure"><button type="button" data-cutaway="true" aria-pressed="true">Evacuation cutaway</button><button type="button" data-cutaway="false" aria-pressed="false">Full architecture</button></div><output id="stadium-3d-performance"></output></div>
         <div id="stadium-3d-error" class="error" role="alert"><span id="stadium-3d-error-text"></span><button type="button" id="stadium-return-2d" hidden>Return to 2D</button></div>
@@ -143,8 +143,16 @@ export class StadiumViewer {
     root.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(button => button.addEventListener("click", () => void this.switchView(button.dataset.view as StadiumViewMode)));
     root.querySelector<HTMLDetailsElement>("#stadium-reference-panel")!.addEventListener("toggle", event =>
       this.routes.setReferenceVisible((event.target as HTMLDetailsElement).open));
-    root.querySelectorAll<HTMLButtonElement>("[data-camera]").forEach(button => button.addEventListener("click", () =>
-      this.threeD?.preset(button.dataset.camera as "overview" | "connections" | "gates" | "fit")));
+    root.querySelectorAll<HTMLButtonElement>("[data-camera]").forEach(button => button.addEventListener("click", () => {
+      this.threeD?.preset(button.dataset.camera as "reset" | "top-down" | "connections" | "gates");
+      this.updateFollowControl();
+    }));
+    root.querySelector<HTMLButtonElement>("#stadium-follow-person")!.addEventListener("click", () => {
+      const id = this.routes.selectedPersonId;
+      const person = id === null ? undefined : this.routes.renderFrame().people.find(candidate => candidate.id === id);
+      if (person && person.movementState !== "evacuated") this.threeD?.focusPerson(person, true);
+      this.updateFollowControl();
+    });
     root.querySelectorAll<HTMLButtonElement>("[data-lighting]").forEach(button => button.addEventListener("click", () => {
       const lighting = button.dataset.lighting as StadiumLighting;
       this.threeD?.setLighting(lighting);
@@ -169,11 +177,8 @@ export class StadiumViewer {
     this.routes.update(delta, active);
     this.syncPersonPicker();
     if (active && this.viewMode === "3d" && this.threeD) {
-      const frame = this.routes.renderFrame(), id = this.routes.selectedPersonId;
-      const person = id === null ? undefined : frame.people.find(candidate => candidate.id === id);
-      if (frame.hasStarted && person && person.movementState !== "evacuated" && !this.threeD.isFollowing)
-        this.threeD.focusPerson(person, true);
-      this.threeD.render(frame);
+      this.threeD.render(this.routes.renderFrame());
+      this.updateFollowControl();
     }
   }
   pause() { this.routes.pause(); }
@@ -237,7 +242,7 @@ export class StadiumViewer {
     this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = true;
     this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = false;
     this.threeD?.setSelection(null, this.selected?.kind === "section" ? this.selected.id : null);
-    if (this.selected?.kind === "section") this.frameSection(this.selected);
+    if (this.selected?.kind === "section" && this.viewMode === "2d") this.frameSection(this.selected);
     const f = this.selected;
     const details = this.root.querySelector("#stadium-feature-details")!;
     if (!f) {
@@ -265,8 +270,7 @@ export class StadiumViewer {
     this.root.querySelector<HTMLElement>("#stadium-connection-controls")!.hidden = true;
     this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = false;
     this.threeD?.setSelection(id, null);
-    const person = this.routes.renderFrame().people.find(candidate => candidate.id === id);
-    if (person) this.threeD?.focusPerson(person, this.routes.renderFrame().hasStarted);
+    this.updateFollowControl();
   }
 
   private clearPersonAndOverview() {
@@ -274,11 +278,10 @@ export class StadiumViewer {
     this.root.querySelector<HTMLSelectElement>("#stadium-context-person-picker")!.value = "";
     this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = true;
     this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = false;
-    this.threeD?.setSelection(null, null); this.threeD?.setFollowing(false); this.threeD?.preset("overview");
+    this.threeD?.setSelection(null, null); this.threeD?.setFollowing(false); this.updateFollowControl();
   }
 
   private frameSection(section: Extract<StadiumFeature, { kind: "section" }>) {
-    if (this.viewMode === "3d") { this.threeD?.focusSection(section.id); return; }
     const points = section.polygon.map(point => physicalToSvg(sourceToPhysical(point)));
     const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
     const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
@@ -343,14 +346,6 @@ export class StadiumViewer {
         return;
       }
     }
-    if (mode === "3d" && this.threeD) {
-      this.threeD.setCutaway(true);
-      this.root.querySelectorAll<HTMLElement>("[data-cutaway]").forEach(control => control.setAttribute("aria-pressed", String(control.dataset.cutaway === "true")));
-      const id = this.routes.selectedPersonId, frame = this.routes.renderFrame();
-      const person = id === null ? undefined : frame.people.find(candidate => candidate.id === id);
-      if (person) this.threeD.focusPerson(person, frame.hasStarted);
-      else if (this.selected?.kind === "section") this.threeD.focusSection(this.selected.id);
-    } else if (mode === "2d" && this.threeD) this.threeD.preset("overview");
     this.viewMode = mode; this.routes.setViewMode(mode);
     this.svg.toggleAttribute("hidden", mode !== "2d");
     this.root.querySelector<HTMLElement>("#stadium-3d")!.hidden = mode !== "3d";
@@ -358,6 +353,7 @@ export class StadiumViewer {
     this.root.querySelector<HTMLElement>(".stadium-zoom")!.hidden = mode !== "2d";
     this.root.querySelectorAll<HTMLElement>("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === mode)));
     if (mode === "3d" && this.threeD) this.threeD.render(this.routes.renderFrame());
+    this.updateFollowControl();
   }
 
   private syncPersonPicker() {
@@ -366,6 +362,15 @@ export class StadiumViewer {
     if (picker.options.length === frame.population + 1) return;
     picker.innerHTML = `<option value="">Choose a spectator…</option>` + frame.people.map(person =>
       `<option value="${person.id}">Spectator ${person.id + 1} · ${person.sectionId.replace("section-", "Section ")}</option>`).join("");
+  }
+
+  private updateFollowControl() {
+    const button = this.root.querySelector<HTMLButtonElement>("#stadium-follow-person");
+    if (!button) return;
+    const id = this.routes.selectedPersonId;
+    const person = id === null ? undefined : this.routes.renderFrame().people.find(candidate => candidate.id === id);
+    button.disabled = !person || person.movementState === "evacuated" || !this.threeD;
+    button.setAttribute("aria-pressed", String(Boolean(person && this.threeD?.isFollowing)));
   }
 
   private updateView() {
