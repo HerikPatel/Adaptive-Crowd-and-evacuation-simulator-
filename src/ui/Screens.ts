@@ -1,4 +1,4 @@
-import { MOVEMENT_LABELS, ROUTING_LABELS, ALGORITHM_LABELS, ALGORITHM_HELP, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
+import { MOVEMENT_LABELS, ROUTING_LABELS, ROUTING_HELP, ALGORITHM_LABELS, ALGORITHM_HELP, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { Experiment, type Scenario, type Screen } from "../simulation/Experiment";
 import { MAPS, type MapChoiceId } from "../maps/maps";
 
@@ -90,6 +90,7 @@ export class Screens {
       document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
       document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
       document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
+      document.querySelector("#routing-control-help")!.textContent = `${ROUTING_HELP[s.mode]} Changing routing resets the run.`;
       document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
       document.querySelector<HTMLSelectElement>("#algorithm")!.value = s.algorithm;
       document.querySelector<HTMLSelectElement>("#algorithm")!.disabled = s.mode === "flow-field";

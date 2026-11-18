@@ -26,6 +26,11 @@ export type RoutingMode = "shortest" | "congestion" | "flow-field";
 export const ROUTING_LABELS: Record<RoutingMode, string> = {
   shortest: "Shortest Path", congestion: "Congestion Aware", "flow-field": "Shared Flow Field",
 };
+export const ROUTING_HELP: Record<RoutingMode, string> = {
+  shortest: "Shortest Path: everyone takes the shortest route to the nearest exit and ignores crowding.",
+  congestion: "Congestion Aware: people avoid crowded corridors and may switch to a less busy exit.",
+  "flow-field": "Shared Flow Field: one congestion-aware route map per exit, shared by the whole crowd.",
+};
 export type MovementMode = "predictive" | "orca";
 export const MOVEMENT_LABELS: Record<MovementMode, string> = { predictive: "Predictive steering", orca: "ORCA" };
 export const EXIT_IDS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;

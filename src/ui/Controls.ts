@@ -1,6 +1,6 @@
 import { Experiment } from "../simulation/Experiment";
 import type { Grid } from "../simulation/Grid";
-import { PATH_ALGORITHMS, ALGORITHM_LABELS, ALGORITHM_HELP, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
+import { PATH_ALGORITHMS, ALGORITHM_LABELS, ALGORITHM_HELP, ROUTING_HELP, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
 import { MAPS, MAP_CHOICES, type MapChoiceId } from "../maps/maps";
@@ -13,7 +13,7 @@ export class Controls {
     document.querySelector("#controls")!.innerHTML = `
       <label for="map">Building layout</label><select id="map">${MAP_CHOICES.map(map => `<option value="${map.id}">${map.name}</option>`).join("")}</select>
       <p class="note" id="map-description"></p>
-      <label for="routing">Routing strategy</label><select id="routing" aria-describedby="routing-control-help"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option><option value="flow-field">Shared Flow Field</option></select><p id="routing-control-help" class="field-help">Shared Flow Field reuses congestion-aware routes across the crowd. Changing routing resets the run.</p>
+      <label for="routing">Routing strategy</label><select id="routing" aria-describedby="routing-control-help"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option><option value="flow-field">Shared Flow Field</option></select><p id="routing-control-help" class="field-help"></p>
       <label for="algorithm">Path-planning algorithm</label><select id="algorithm" aria-describedby="algorithm-help">${PATH_ALGORITHMS.map(id => `<option value="${id}">${ALGORITHM_LABELS[id]}</option>`).join("")}</select><p class="field-help" id="algorithm-help"></p>
       <label for="movement">Local movement</label><select id="movement" aria-describedby="local-movement-help"><option value="predictive">Predictive steering</option><option value="orca">ORCA</option></select><p class="field-help" id="local-movement-help">Changing movement resets the crowd for comparison. Routing stays independently selectable.</p>
       <form id="population-form"><label for="population">Agent population</label><input id="population" type="number" min="1" step="1" required aria-describedby="population-help"><p class="field-help" id="population-help"></p><button type="submit" class="menu-button">Apply crowd size</button></form>
@@ -68,6 +68,7 @@ export class Controls {
     const s = this.experiment.simulation;
     document.querySelector<HTMLSelectElement>("#map")!.value = s.mapId;
     document.querySelector<HTMLSelectElement>("#routing")!.value = s.mode;
+    document.querySelector("#routing-control-help")!.textContent = `${ROUTING_HELP[s.mode]} Changing routing resets the run.`;
     document.querySelector<HTMLSelectElement>("#movement")!.value = s.movementMode;
     document.querySelector<HTMLSelectElement>("#algorithm")!.value = s.algorithm;
     const flowField = s.mode === "flow-field";
