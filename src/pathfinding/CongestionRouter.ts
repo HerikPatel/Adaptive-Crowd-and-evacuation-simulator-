@@ -1,4 +1,4 @@
-import { CONFIG, type PathAlgorithm, type RoutingMode } from "../config/simulationConfig";
+import { CONFIG, type ExitId, type PathAlgorithm, type RoutingMode } from "../config/simulationConfig";
 import type { Agent } from "../simulation/Agent";
 import { Grid } from "../simulation/Grid";
 import type { PathResult } from "./AStar";
@@ -21,14 +21,17 @@ export class CongestionRouter {
   private aStarSearches = 0;
   get searches() { return this.aStarSearches + this.flowFields.builds; }
 
-  plan(agent: Agent, grid: Grid, mode: RoutingMode, time = 0, algorithm: PathAlgorithm = "astar"): PathResult | null {
+  /** `onlyExit` keeps a group member on its leader's exit; if that exit is unreachable, all exits are considered. */
+  plan(agent: Agent, grid: Grid, mode: RoutingMode, time = 0, algorithm: PathAlgorithm = "astar", onlyExit?: ExitId): PathResult | null {
     this.requests++;
     const start = grid.cell(agent.position);
     if (!grid.walkable(start.x, start.y)) return null;
     const routes: Candidate[] = [];
     if (mode === "flow-field") this.flowFields.prepare(grid, time);
+    const allowed = (id: ExitId) => !onlyExit || id === onlyExit;
+    for (let pass = 0; pass < 2 && !routes.length; pass++)
     for (const id of grid.exitIds) {
-      if (grid.blockedExits.has(id)) continue;
+      if (grid.blockedExits.has(id) || (pass === 0 && !allowed(id)) || (pass === 1 && !onlyExit)) continue;
       if (mode === "flow-field") {
         const field = this.flowFields.field(id)!;
         const totalCost = field.integration[grid.index(start.x, start.y)];

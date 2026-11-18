@@ -132,9 +132,21 @@ export class Renderer {
       c.font = label.exit ? "bold 12px Segoe UI" : "11px Segoe UI";
       c.fillText(blocked ? `EXIT ${label.exit} / BLOCKED` : label.text, label.x, label.y);
     }
+    // Thin links between members of a group show who is walking together.
+    c.strokeStyle = "#c6e4ff55";
+    c.lineWidth = 1;
+    for (const a of agents) {
+      if (a.evacuated || a.groupId === null || a.groupId === a.id) continue;
+      const leader = agents[a.groupId];
+      if (!leader || leader.evacuated) continue;
+      c.beginPath();
+      c.moveTo(a.position.x, a.position.y);
+      c.lineTo(leader.position.x, leader.position.y);
+      c.stroke();
+    }
     for (const a of agents) {
       if (a.evacuated) continue;
-      c.fillStyle = a.reroutingUntil > time ? "#ffc477" : "#c6e4ff";
+      c.fillStyle = a.reroutingUntil > time ? "#ffc477" : a.slow ? "#c9a2ff" : "#c6e4ff";
       c.beginPath();
       c.arc(a.position.x, a.position.y, a.radius, 0, Math.PI * 2);
       c.fill();

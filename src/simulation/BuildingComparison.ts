@@ -1,7 +1,10 @@
 import {
   ALGORITHM_LABELS,
   CONFIG,
+  DEFAULT_CROWD,
   PATH_ALGORITHMS,
+  SLOW_SHARES,
+  type CrowdMix,
   ROUTING_LABELS,
   type ExitId,
   type MovementMode,
@@ -26,6 +29,8 @@ export interface ComparisonRequest {
   population: number;
   scenario: Scenario;
   movement: MovementMode;
+  /** Crowd composition; optional so older callers keep the default crowd. */
+  crowd?: CrowdMix;
   variants: ComparisonVariant[];
   timeLimitSeconds: number;
 }
@@ -51,6 +56,10 @@ export interface ComparisonResult {
   routeSwitches: number;
   peakDensity: number;
   computeMilliseconds: number;
+  crowd: CrowdMix;
+  slowMeanSeconds: number | null;
+  othersMeanSeconds: number | null;
+  groups: number;
 }
 
 export type ComparisonMessage =
@@ -82,6 +91,8 @@ export function validateRequest(r: ComparisonRequest) {
     if (!["shortest", "congestion", "flow-field"].includes(v.mode)) throw new Error("Unknown routing strategy.");
     if (v.mode !== "flow-field" && (!v.algorithm || !PATH_ALGORITHMS.includes(v.algorithm))) throw new Error("Unknown path-planning algorithm.");
   }
+  if (r.crowd && (!(SLOW_SHARES as readonly number[]).includes(r.crowd.slowShare) || typeof r.crowd.groups !== "boolean"))
+    throw new Error("Unknown crowd mix.");
   if (!Number.isInteger(r.timeLimitSeconds) || r.timeLimitSeconds < 30 || r.timeLimitSeconds > 1800)
     throw new Error("Choose a run limit from 30 to 1,800 simulated seconds.");
 }
@@ -92,6 +103,7 @@ export class ComparisonRun {
   private compute = 0;
   constructor(private request: ComparisonRequest, readonly variant: ComparisonVariant) {
     const e = this.experiment, s = e.simulation;
+    s.crowd = { ...(request.crowd ?? DEFAULT_CROWD) };
     if (request.layout) {
       const loaded = parseLayout(request.layout);
       if (loaded.mapId !== request.mapId) throw new Error("The edited layout belongs to a different map.");
@@ -111,7 +123,7 @@ export class ComparisonRun {
     this.compute += performance.now() - t;
   }
   result(): ComparisonResult {
-    const s = this.experiment.simulation, m = s.metrics, complete = m.remainingAgents === 0;
+    const s = this.experiment.simulation, m = s.metrics, complete = m.remainingAgents === 0, crowd = s.crowdSummary();
     const byExit: Partial<Record<ExitId, number>> = {};
     for (const [id, record] of m.byExit) byExit[id] = record.count;
     return {
@@ -134,6 +146,10 @@ export class ComparisonRun {
       routeSwitches: s.routeSwitchCount,
       peakDensity: m.peakDensity,
       computeMilliseconds: this.compute,
+      crowd: { ...s.crowd },
+      slowMeanSeconds: crowd.slowMean,
+      othersMeanSeconds: crowd.othersMean,
+      groups: crowd.groups,
     };
   }
 }
@@ -146,12 +162,12 @@ const round = (n: number | null, digits = 2) => (n === null ? null : Number(n.to
 
 export function comparisonCsv(results: ComparisonResult[]): string {
   const exits = [...new Set(results.flatMap((r) => Object.keys(r.byExit)))].sort() as ExitId[];
-  const header = ["map", "layout", "routing_strategy", "algorithm", "local_movement", "scenario", "population", "seed", "status",
+  const header = ["map", "layout", "routing_strategy", "algorithm", "local_movement", "scenario", "population", "slower_walkers_share", "groups", "seed", "status",
     "evacuated", "total_evacuation_s", "mean_evacuation_s", "elapsed_s", "exit_A_closed_s", ...exits.map((id) => `exit_${id}_count`),
-    "route_switches", "peak_density", "compute_ms"];
+    "slow_mean_evacuation_s", "others_mean_evacuation_s", "route_switches", "peak_density", "compute_ms"];
   const rows = results.map((r) => [r.map, r.layout, ROUTING_LABELS[r.routing], r.algorithm ? ALGORITHM_LABELS[r.algorithm] : "n/a (flow field)",
-    r.movement, SCENARIO_LABELS[r.scenario], r.population, r.seed, r.status,
+    r.movement, SCENARIO_LABELS[r.scenario], r.population, r.crowd.slowShare, r.groups, r.seed, r.status,
     r.evacuated, round(r.totalEvacuationSeconds), round(r.meanEvacuationSeconds), round(r.elapsedSeconds), round(r.exitAClosedSeconds),
-    ...exits.map((id) => r.byExit[id] ?? 0), r.routeSwitches, round(r.peakDensity, 3), Math.round(r.computeMilliseconds)]);
+    ...exits.map((id) => r.byExit[id] ?? 0), round(r.slowMeanSeconds), round(r.othersMeanSeconds), r.routeSwitches, round(r.peakDensity, 3), Math.round(r.computeMilliseconds)]);
   return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n") + "\n";
 }

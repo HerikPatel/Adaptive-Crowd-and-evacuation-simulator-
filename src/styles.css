@@ -569,3 +569,4 @@ progress {
 .stadium-result-bar i.best { background: #46bba5; }
 .stadium-result-bar i.timeout { background: #ef735c; }
 @media (max-width: 550px) { .comparison-form { grid-template-columns: 1fr; } }
+.legend .slow-walker { color: #c9a2ff; }

@@ -67,6 +67,7 @@ export class BuildingComparisonPanel {
       population: s.agentCount,
       scenario: this.experiment.scenario,
       movement: s.movementMode,
+      crowd: { ...s.crowd },
       variants: comparisonVariants(this.checked("comparison-mode") as RoutingMode[], this.checked("comparison-algorithm") as PathAlgorithm[]),
       timeLimitSeconds: Number(this.root.querySelector<HTMLInputElement>("#comparison-limit")!.value),
     };
@@ -76,7 +77,7 @@ export class BuildingComparisonPanel {
     const r = this.request();
     const runs = r.variants.length;
     this.root.querySelector("#comparison-summary")!.textContent = runs
-      ? `${runs} run${runs === 1 ? "" : "s"} · ${r.population} people · ${MAPS[r.mapId].name}${r.layout ? " (edited)" : ""} · ${SCENARIO_LABELS[r.scenario]} · ${MOVEMENT_LABELS[r.movement]}`
+      ? `${runs} run${runs === 1 ? "" : "s"} · ${r.population} people · ${MAPS[r.mapId].name}${r.layout ? " (edited)" : ""} · ${SCENARIO_LABELS[r.scenario]} · ${MOVEMENT_LABELS[r.movement]}${r.crowd?.slowShare ? ` · ${r.crowd.slowShare * 100}% slower walkers` : ""}${r.crowd?.groups ? " · groups" : ""}`
       : "Choose at least one strategy, and an algorithm for Shortest Path or Congestion Aware.";
   }
 

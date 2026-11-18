@@ -1,4 +1,4 @@
-import { CONFIG, FIRE, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
+import { CONFIG, CROWD, DEFAULT_CROWD, FIRE, type CrowdMix, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import { createMvpMap } from "../maps/mvpMap";
 import { MAPS, type MapId } from "../maps/maps";
 import { CongestionRouter } from "../pathfinding/CongestionRouter";
@@ -28,6 +28,10 @@ export class Simulation {
   replanQueue: Agent[] = [];
   routeSwitchCount = 0;
   metrics = new Metrics(0);
+  /** Crowd composition used by reset(). */
+  crowd: CrowdMix = { ...DEFAULT_CROWD };
+  /** Members of each group by group id (the leader's id); the leader is first. */
+  groups = new Map<number, Agent[]>();
   private customLayouts = new Map<MapId, Grid>();
   get hasCustomLayout() { return this.customLayouts.has(this.mapId); }
   layoutFor(mapId: MapId = this.mapId): Grid {
@@ -101,7 +105,73 @@ export class Simulation {
       this.agents.push(a);
       this.enqueue(a);
     }
+    this.applyCrowdMix();
     this.rebuildHash();
+  }
+  /**
+   * Marks slower walkers and forms groups. Uses its own random stream, so a run
+   * with the default crowd is identical to one made before mixed crowds existed.
+   */
+  private applyCrowdMix() {
+    this.groups = new Map();
+    const { slowShare, groups } = this.crowd;
+    if (!slowShare && !groups) return;
+    const random = seededRandom(CONFIG.seed + 7);
+    const order = this.agents.map((a) => a.id);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    for (const id of order.slice(0, Math.round(slowShare * this.agents.length))) {
+      const a = this.agents[id];
+      a.slow = true;
+      a.baseSpeed *= CROWD.slowSpeedFactor;
+      a.speed = a.baseSpeed;
+    }
+    if (!groups) return;
+    const reach = CROWD.groupRadiusCells * this.grid.cellSize;
+    for (const leader of this.agents) {
+      if (leader.groupId !== null || random() >= CROWD.groupStartChance) continue;
+      const size = 2 + Math.floor(random() * (CROWD.maxGroupSize - 1));
+      const nearby = this.agents
+        .filter((b) => b !== leader && b.groupId === null && distance(b.position, leader.position) <= reach)
+        .sort((b, c) => distance(b.position, leader.position) - distance(c.position, leader.position) || b.id - c.id)
+        .slice(0, size - 1);
+      if (!nearby.length) continue;
+      const members = [leader, ...nearby];
+      for (const m of members) m.groupId = leader.id;
+      this.groups.set(leader.id, members);
+    }
+  }
+  /** Mean evacuation times by kind of walker, for results and comparisons. */
+  crowdSummary() {
+    const mean = (xs: number[]) => (xs.length ? xs.reduce((t, x) => t + x, 0) / xs.length : null);
+    const done = (a: Agent) => a.evacuationTime !== null;
+    const slow = this.agents.filter((a) => a.slow), others = this.agents.filter((a) => !a.slow);
+    return {
+      slowCount: slow.length,
+      slowMean: mean(slow.filter(done).map((a) => a.evacuationTime!)),
+      othersMean: mean(others.filter(done).map((a) => a.evacuationTime!)),
+      groups: this.groups.size,
+      groupedPeople: [...this.groups.values()].reduce((t, g) => t + g.length, 0),
+    };
+  }
+  /** Walking distance left along the agent's current route, in pixels. */
+  private distanceLeft(a: Agent) {
+    let total = 0, prev = a.position;
+    for (let i = a.pathIndex; i < a.path.length; i++) {
+      const next = this.grid.center(a.path[i]);
+      total += distance(prev, next);
+      prev = next;
+    }
+    return total;
+  }
+  /** A group member heads for its leader's exit, even after the leader is out, unless that exit closes. */
+  private groupExit(a: Agent): ExitId | undefined {
+    if (a.groupId === null || a.groupId === a.id) return undefined;
+    const leader = this.agents[a.groupId];
+    if (!leader.targetExit || this.grid.blockedExits.has(leader.targetExit)) return undefined;
+    return leader.targetExit;
   }
   rebuildHash() {
     this.hash.clear();
@@ -236,12 +306,15 @@ export class Simulation {
       a.queued = false;
       if (a.evacuated) continue;
       processed++;
-      const route = this.router.plan(a, this.grid, this.mode, this.time, this.algorithm);
+      const route = this.router.plan(a, this.grid, this.mode, this.time, this.algorithm, this.groupExit(a));
       if (route) {
         if (a.targetExit && a.targetExit !== route.targetExit) {
           this.routeSwitchCount++;
           a.reroutingUntil = this.time + 1.5;
         }
+        // When a leader picks a new exit, the rest of the group replans to follow.
+        if (a.groupId === a.id && a.targetExit !== route.targetExit)
+          for (const m of this.groups.get(a.id) ?? []) if (m !== a && !m.evacuated) { m.nextReplanTime = 0; this.enqueue(m); }
         a.path = route.path;
         a.pathIndex = 0;
         a.targetExit = route.targetExit;
@@ -269,6 +342,17 @@ export class Simulation {
       const c = this.grid.cell(a.position);
       const smoke = this.grid.inside(c.x, c.y) ? this.grid.hazard[this.grid.index(c.x, c.y)] : 0;
       a.speed = a.baseSpeed * (1 - (1 - FIRE.smokeSpeedFactor) * smoke);
+    }
+    // Groups walk at their slowest member's pace. Whoever is furthest along the
+    // route waits when the group stretches out, so nobody leaves the others behind.
+    for (const members of this.groups.values()) {
+      const active = members.filter((m) => !m.evacuated);
+      if (active.length < 2) continue;
+      const pace = Math.min(...active.map((m) => m.speed));
+      const left = new Map(active.map((m) => [m, this.distanceLeft(m)]));
+      const back = Math.max(...left.values()), spread = CROWD.waitDistanceCells * this.grid.cellSize;
+      for (const m of active)
+        m.speed = left.get(m)! < back - spread ? pace * 0.35 : Math.min(m.speed, pace);
     }
     const maxSpeed = Math.max(0, ...this.agents.filter(a => !a.evacuated).map(a => a.speed));
     for (const a of this.agents) {

@@ -18,6 +18,7 @@ const COLORS = {
   wall: 0x3d566b,
   agent: new THREE.Color(0xc6e4ff),
   rerouting: new THREE.Color(0xffc477),
+  slow: new THREE.Color(0xc9a2ff),
   exit: 0x67dec1,
   blocked: 0xef735c,
 };
@@ -326,7 +327,7 @@ export class Renderer3D {
     for (const a of agents) {
       if (a.evacuated) continue;
       const p = this.toWorld(a.position.x, a.position.y, grid);
-      const color = a.reroutingUntil > time ? COLORS.rerouting : COLORS.agent;
+      const color = a.reroutingUntil > time ? COLORS.rerouting : a.slow ? COLORS.slow : COLORS.agent;
       this.matrix.makeTranslation(p.x, bodyY, p.z);
       bodies.setMatrixAt(n, this.matrix);
       bodies.setColorAt(n, color);

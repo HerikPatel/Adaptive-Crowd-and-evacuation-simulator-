@@ -33,6 +33,26 @@ export const FIRE = {
   /** Extra route cost per cell of full smoke, for every routing strategy. */
   smokeRouteCost: 6,
 } as const;
+/** Who is in the crowd. The default (no slower walkers, no groups) reproduces earlier runs exactly. */
+export interface CrowdMix {
+  /** Share of people who walk slowly, e.g. with a mobility impairment (0 to 0.3). */
+  slowShare: number;
+  /** Whether friends and families form groups that stay together. */
+  groups: boolean;
+}
+export const DEFAULT_CROWD: CrowdMix = { slowShare: 0, groups: false };
+export const SLOW_SHARES = [0, 0.1, 0.2, 0.3] as const;
+export const CROWD = {
+  /** Slower walkers move at this fraction of normal speed (about 0.7 m/s versus 1.25 m/s). */
+  slowSpeedFactor: 0.55,
+  /** Chance that a person not yet in a group starts one. */
+  groupStartChance: 0.25,
+  maxGroupSize: 4,
+  /** Group members start within this many cells of each other. */
+  groupRadiusCells: 2.5,
+  /** A leader slows right down when a member falls this many cells behind. */
+  waitDistanceCells: 3,
+} as const;
 export type RoutingMode = "shortest" | "congestion" | "flow-field";
 export const ROUTING_LABELS: Record<RoutingMode, string> = {
   shortest: "Shortest Path", congestion: "Congestion Aware", "flow-field": "Shared Flow Field",

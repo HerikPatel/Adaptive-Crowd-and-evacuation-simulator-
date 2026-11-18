@@ -76,8 +76,8 @@ test("the CSV has one row per run with stable, quoted columns", () => {
   const results = [runToEnd(r, 0).result(), runToEnd(r, 2).result()];
   const lines = comparisonCsv(results).trim().split("\n");
   assert.equal(lines.length, 3);
-  assert.match(lines[0], /^map,layout,routing_strategy,algorithm,local_movement,scenario,population,seed,status,evacuated,total_evacuation_s,mean_evacuation_s,elapsed_s,exit_A_closed_s,exit_A_count,exit_B_count,route_switches,peak_density,compute_ms$/);
-  assert.match(lines[1], /^Original bottleneck · 50 × 30,preset,Shortest Path,A\* \(4-way grid\),predictive,All exits open,60,549,complete,60,/);
+  assert.match(lines[0], /^map,layout,routing_strategy,algorithm,local_movement,scenario,population,slower_walkers_share,groups,seed,status,evacuated,total_evacuation_s,mean_evacuation_s,elapsed_s,exit_A_closed_s,exit_A_count,exit_B_count,slow_mean_evacuation_s,others_mean_evacuation_s,route_switches,peak_density,compute_ms$/);
+  assert.match(lines[1], /^Original bottleneck · 50 × 30,preset,Shortest Path,A\* \(4-way grid\),predictive,All exits open,60,0,0,549,complete,60,/);
 });
 
 test("CSV cells with commas or quotes are escaped", () => {

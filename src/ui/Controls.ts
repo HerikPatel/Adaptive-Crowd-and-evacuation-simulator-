@@ -1,6 +1,6 @@
 import { Experiment } from "../simulation/Experiment";
 import type { Grid } from "../simulation/Grid";
-import { PATH_ALGORITHMS, ALGORITHM_LABELS, ALGORITHM_HELP, ROUTING_HELP, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
+import { PATH_ALGORITHMS, ALGORITHM_LABELS, ALGORITHM_HELP, ROUTING_HELP, SLOW_SHARES, type ExitId, type RoutingMode, type MovementMode, type PathAlgorithm } from "../config/simulationConfig";
 import type { RenderOptions } from "../rendering/Renderer";
 import type { PerformanceStats } from "./PerformanceStats";
 import { MAPS, MAP_CHOICES, type MapChoiceId } from "../maps/maps";
@@ -16,6 +16,9 @@ export class Controls {
       <label for="routing">Routing strategy</label><select id="routing" aria-describedby="routing-control-help"><option value="shortest">Shortest Path</option><option value="congestion">Congestion Aware</option><option value="flow-field">Shared Flow Field</option></select><p id="routing-control-help" class="field-help"></p>
       <label for="algorithm">Path-planning algorithm</label><select id="algorithm" aria-describedby="algorithm-help">${PATH_ALGORITHMS.map(id => `<option value="${id}">${ALGORITHM_LABELS[id]}</option>`).join("")}</select><p class="field-help" id="algorithm-help"></p>
       <label for="movement">Local movement</label><select id="movement" aria-describedby="local-movement-help"><option value="predictive">Predictive steering</option><option value="orca">ORCA</option></select><p class="field-help" id="local-movement-help">Changing movement resets the crowd for comparison. Routing stays independently selectable.</p>
+      <label for="slow">Slower walkers</label><select id="slow">${SLOW_SHARES.map(v => `<option value="${v}">${v ? `${v * 100}% of the crowd` : "None"}</option>`).join("")}</select>
+      <label class="check"><input type="checkbox" id="groups"> Groups that stay together</label>
+      <p class="field-help" id="crowd-help">Changing the crowd mix resets the run.</p>
       <form id="population-form"><label for="population">Agent population</label><input id="population" type="number" min="1" step="1" required aria-describedby="population-help"><p class="field-help" id="population-help"></p><button type="submit" class="menu-button">Apply crowd size</button></form>
       <p class="error" id="control-error" role="alert"></p>
       <div class="buttons"><button id="start" class="primary">Start</button><button id="pause">Pause</button><button id="reset">Reset</button></div>
@@ -31,6 +34,8 @@ export class Controls {
     document.querySelector("#routing")!.addEventListener("change", () => this.configure());
     document.querySelector("#movement")!.addEventListener("change", () => this.configure());
     document.querySelector("#algorithm")!.addEventListener("change", () => this.configure());
+    document.querySelector("#slow")!.addEventListener("change", () => this.configure());
+    document.querySelector("#groups")!.addEventListener("change", () => this.configure());
     document.querySelector("#map")!.addEventListener("change", () => this.configure());
     document.querySelector("#population-form")!.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -77,6 +82,8 @@ export class Controls {
       ? "Shared Flow Field builds one route field per exit, so it does not use a per-person search algorithm."
       : ALGORITHM_HELP[s.algorithm];
     document.querySelector<HTMLInputElement>("#population")!.value = String(s.agentCount);
+    document.querySelector<HTMLSelectElement>("#slow")!.value = String(s.crowd.slowShare);
+    document.querySelector<HTMLInputElement>("#groups")!.checked = s.crowd.groups;
   }
   private configure(count = this.experiment.simulation.agentCount) {
     const mapId = document.querySelector<HTMLSelectElement>("#map")!.value as MapChoiceId;
@@ -86,6 +93,10 @@ export class Controls {
       return;
     }
     const message = document.querySelector("#control-error")!;
+    this.experiment.simulation.crowd = {
+      slowShare: Number(document.querySelector<HTMLSelectElement>("#slow")!.value),
+      groups: document.querySelector<HTMLInputElement>("#groups")!.checked,
+    };
     try {
       this.experiment.begin(count,
         document.querySelector<HTMLSelectElement>("#routing")!.value as RoutingMode,
