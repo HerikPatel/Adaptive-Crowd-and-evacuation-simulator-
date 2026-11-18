@@ -27,7 +27,8 @@ export const FIRE = {
   /** The fire is already burning when the run starts, so nobody walks through it unaware. */
   startSeconds: 0,
   spreadIntervalSeconds: 1.5,
-  maxCells: 70,
+  /** The fire keeps spreading until it covers this share of the building's floor. */
+  maxFloorShare: 0.35,
   smokeRangeCells: 4,
   /** Walking speed in the thickest smoke, as a fraction of normal speed. */
   smokeSpeedFactor: 0.55,

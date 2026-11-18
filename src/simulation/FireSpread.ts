@@ -6,7 +6,7 @@ import type { Agent } from "./Agent";
 
 /**
  * A fire that starts in the middle of the building and spreads one ring of
- * floor cells at a time. Burning cells cannot be walked through; smoke within a
+ * floor cells at a time, until it covers a set share of the floor. Burning cells cannot be walked through; smoke within a
  * few cells of the fire slows people down and makes routes through it costly.
  *
  * The fire never traps anyone: it does not spread into a cell where a person is
@@ -14,16 +14,21 @@ import type { Agent } from "./Agent";
  */
 export class FireSpread {
   readonly origin: GridPosition | null;
+  /** Largest size the fire can reach, in cells. */
+  readonly maxCells: number;
   startTime: number | null = null;
   burning = 0;
   private nextSpread: number = FIRE.startSeconds;
 
   constructor(grid: Grid) {
     this.origin = fireOrigin(grid);
+    let floor = 0;
+    for (let i = 0; i < grid.cells.length; i++) if (grid.cells[i] === CellType.Walkable) floor++;
+    this.maxCells = Math.floor(floor * FIRE.maxFloorShare);
   }
 
   get started() { return this.startTime !== null; }
-  get finished() { return this.burning >= FIRE.maxCells; }
+  get finished() { return this.burning >= this.maxCells; }
 
   /** Advances the fire to the current simulation time. Returns true if it grew. */
   update(s: Simulation): boolean {
@@ -32,7 +37,7 @@ export class FireSpread {
     const grid = s.grid, added: number[] = [];
     const candidates = this.started ? frontier(grid) : nearestFree(grid, this.origin);
     for (const id of candidates) {
-      if (this.burning + added.length >= FIRE.maxCells) break;
+      if (this.burning + added.length >= this.maxCells) break;
       if (occupied(s.agents, grid, id)) continue;
       grid.fire[id] = 1;
       if (traps(s.agents, grid)) { grid.fire[id] = 0; continue; }

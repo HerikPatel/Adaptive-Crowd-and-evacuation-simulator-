@@ -22,7 +22,8 @@ test("fire is already burning before Start, grows over time, and stops at its si
   const mid = e.fire!.burning;
   assert.ok(mid > 1);
   run(e, 120);
-  assert.ok(e.fire!.burning >= mid && e.fire!.burning <= FIRE.maxCells);
+  assert.ok(e.fire!.burning >= mid && e.fire!.burning <= e.fire!.maxCells);
+  assert.ok(e.fire!.maxCells > 300, `max ${e.fire!.maxCells}`);
 });
 
 test("burning cells block walking and no planner routes through them", () => {
