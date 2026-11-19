@@ -1,8 +1,10 @@
 import { STADIUM, STADIUM_SURFACES, type Point, type SurfaceId } from "./stadium";
+import { createSurfacePath, PHYSICAL_STADIUM_ASSUMPTIONS, PHYSICAL_STADIUM_BOUNDS, sourceToPhysical,
+  type PhysicalPath } from "../simulation/StadiumPhysicalGeometry";
 
 /** Experimental inputs, not measurements of SHI Stadium. */
 export const STADIUM_ASSUMPTIONS = {
-  metersPerUnit: 0.2,
+  metersPerUnit: 1,
   walkingSpeedMetersPerSecond: 1.2,
   aisleWidthMeters: 1.2,
   walkwayWidthMeters: 2.4,
@@ -27,6 +29,7 @@ export interface NavigationEdge {
   kind: EdgeKind;
   direction: "both" | "forward";
   points: Point[];
+  physicalPath: PhysicalPath;
   widthMeters: number | null;
   /** Only explicit transfers and gates can change surface. */
   transfer: TransferParameters | null;
@@ -74,7 +77,7 @@ function projectToRing(p: Point, radius: number): number {
 }
 
 export function createStadiumNetwork(): StadiumNetwork {
-  const nodes: NavigationNode[] = [], edges: NavigationEdge[] = [];
+  const nodes: NavigationNode[] = [], edges: Omit<NavigationEdge, "physicalPath">[] = [];
   const sectionNodes: Record<string, string> = {}, gateNodes: Record<string, string> = {};
   const node = (id: string, surfaceId: SurfaceId, point: Point): NavigationNode => {
     const n = { id, surfaceId, point: { ...point } };
@@ -162,7 +165,26 @@ export function createStadiumNetwork(): StadiumNetwork {
   }
   lower.finish();
   concourse.finish();
-  return { nodes, edges, sectionNodes, gateNodes };
+  const physicalNodes = nodes.map(n => {
+    const point = sourceToPhysical(n.point);
+    return { ...n, point: { x: point.x, y: point.z } };
+  });
+  const nodeSurfaces = new Map(nodes.map(node => [node.id, node.surfaceId]));
+  const physicalEdges: NavigationEdge[] = edges.map(edge => {
+    const horizontal = edge.points.map(point => {
+      const physical = sourceToPhysical(point);
+      return { x: physical.x, z: physical.z };
+    });
+    const fromSurface = nodeSurfaces.get(edge.from)!;
+    const toSurface = nodeSurfaces.get(edge.to)!;
+    const width = edge.widthMeters ?? (edge.kind === "ramp" ? PHYSICAL_STADIUM_ASSUMPTIONS.rampWidth
+      : edge.kind === "stairs" ? PHYSICAL_STADIUM_ASSUMPTIONS.stairWidth
+      : edge.kind === "passage" ? PHYSICAL_STADIUM_ASSUMPTIONS.sectionOpeningWidth
+      : PHYSICAL_STADIUM_ASSUMPTIONS.gateApproachWidth);
+    const physicalPath = createSurfacePath(edge.id, horizontal, width, fromSurface, toSurface);
+    return { ...edge, points: horizontal.map(point => ({ x: point.x, y: point.z })), physicalPath };
+  });
+  return { nodes: physicalNodes, edges: physicalEdges, sectionNodes, gateNodes };
 }
 
 /** Exact segment/rectangle test, expanded by corridor half-width for clearance. */
@@ -171,8 +193,8 @@ export function intersectsStadiumField(points: readonly Point[], padding = 0): b
     const a = points[i];
     let enter = 0, leave = 1;
     for (const [start, delta, min, max] of [
-      [a.x, b.x - a.x, 350 - padding, 850 + padding],
-      [a.y, b.y - a.y, 320 - padding, 560 + padding],
+      [a.x, b.x - a.x, 64 - padding, 112 + padding],
+      [a.y, b.y - a.y, 70 - padding, 170 + padding],
     ]) {
       if (Math.abs(delta) < 1e-10) { if (start < min || start > max) return false; }
       else {
@@ -193,12 +215,12 @@ export function validateStadiumNetwork(network: StadiumNetwork): string[] {
   if (new Set(network.edges.map(e => e.id)).size !== network.edges.length) errors.push("Duplicate navigation edge IDs");
   for (const n of network.nodes) {
     if (!surfaces.has(n.surfaceId)) errors.push(`${n.id}: unknown surface`);
-    if (![n.point.x, n.point.y].every(Number.isFinite) || n.point.x < 0 || n.point.x > STADIUM.width || n.point.y < 0 || n.point.y > STADIUM.height) errors.push(`${n.id}: invalid position`);
+    if (![n.point.x, n.point.y].every(Number.isFinite) || n.point.x < 0 || n.point.x > PHYSICAL_STADIUM_BOUNDS.width || n.point.y < 0 || n.point.y > PHYSICAL_STADIUM_BOUNDS.depth) errors.push(`${n.id}: invalid position`);
   }
   for (const e of network.edges) {
     const from = nodes.get(e.from), to = nodes.get(e.to);
     if (!from || !to) { errors.push(`${e.id}: missing endpoint`); continue; }
-    if (e.points.length < 2 || e.points.some(p => ![p.x, p.y].every(Number.isFinite))) { errors.push(`${e.id}: invalid geometry`); continue; }
+    if (e.points.length < 2 || e.points.some(p => ![p.x, p.y].every(Number.isFinite)) || !e.physicalPath || e.physicalPath.length <= 0) { errors.push(`${e.id}: invalid geometry`); continue; }
     if (distance(from.point, e.points[0]) > 1e-5 || distance(to.point, e.points[e.points.length - 1]) > 1e-5) errors.push(`${e.id}: geometry does not meet endpoints`);
     const isTransfer = ["ramp", "stairs", "passage"].includes(e.kind);
     if (isTransfer) {
@@ -209,7 +231,7 @@ export function validateStadiumNetwork(network: StadiumNetwork): string[] {
       if (from.surfaceId !== "concourse" || to.surfaceId !== "exterior" || e.direction !== "forward" || e.transfer) errors.push(`${e.id}: gate must lead out of the concourse`);
     } else if (from.surfaceId !== to.surfaceId || from.surfaceId === "exterior" || e.transfer) errors.push(`${e.id}: walking edges must stay on one interior surface`);
     if (!isTransfer && e.kind !== "gate" && (!Number.isFinite(e.widthMeters) || e.widthMeters! <= 0)) errors.push(`${e.id}: invalid corridor width`);
-    const padding = e.widthMeters === null ? 0 : e.widthMeters / STADIUM_ASSUMPTIONS.metersPerUnit / 2;
+    const padding = e.widthMeters === null ? 0 : e.widthMeters / 2;
     if (intersectsStadiumField(e.points, padding)) errors.push(`${e.id}: route intersects the field`);
   }
   for (const section of STADIUM.sections) {

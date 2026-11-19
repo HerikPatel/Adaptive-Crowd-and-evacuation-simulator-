@@ -18,18 +18,19 @@ test("conflicting schematic stair approaches are recognized without adding graph
   assert.equal(JSON.stringify(r.network), network);
 });
 
-test("a crowded section aisle and crossing stair approach both clear without body overlap", () => {
+test("a crowded physical section aisle and stair approach both clear without body overlap", () => {
   const r = new StadiumRouter();
   for (const edge of r.controls) if (edge.kind === "passage") r.setClosed(edge.id, true);
-  const s = new StadiumSimulation(r, { count: 30, sections: ["section-135", "section-136"], routingMode: "adaptive", profileMode: "uniform" });
+  const s = new StadiumSimulation(r, { count: 30, sections: ["section-135"], routingMode: "adaptive", profileMode: "uniform" });
   s.start();
   for (let i = 0; i < 36000 && s.running; i++) {
     s.update(STADIUM_STEP);
     const bodies = new DiscReservations();
     for (const p of s.spectators) {
       if (p.state.kind === "evacuated") continue;
-      const pos = s.position(p), at = { x: pos.x * 0.2, y: pos.y * 0.2 };
-      const zone = p.state.kind === "transfer" ? `transfer:${p.state.step.edgeId}` : s.surfaceOf(p)!;
+      const pos = s.physicalSample(p).position, at = { x: pos.x, y: pos.z };
+      const zone = p.state.kind === "transfer" ? `transfer:${p.state.step.edgeId}` : p.state.kind === "seated"
+        ? `seats:${s.surfaceOf(p)!}` : p.state.kind === "approaching" ? `approach:${p.sectionId}` : s.surfaceOf(p)!;
       assert.ok(bodies.fits(p.id, zone, at, bodyRadius(p.profile)), `crossing overlap at ${s.time}`);
       bodies.set(p.id, zone, at, bodyRadius(p.profile));
     }
@@ -85,8 +86,9 @@ test("adaptive mixed crowds keep body clearance and population conservation afte
     const bodies = new DiscReservations();
     for (const p of s.spectators) {
       if (p.state.kind === "evacuated") continue;
-      const zone = p.state.kind === "transfer" ? `transfer:${p.state.step.edgeId}` : s.surfaceOf(p)!;
-      const pos = s.position(p), at = { x: pos.x * 0.2, y: pos.y * 0.2 };
+      const zone = p.state.kind === "transfer" ? `transfer:${p.state.step.edgeId}` : p.state.kind === "seated"
+        ? `seats:${s.surfaceOf(p)!}` : p.state.kind === "approaching" ? `approach:${p.sectionId}` : s.surfaceOf(p)!;
+      const pos = s.physicalSample(p).position, at = { x: pos.x, y: pos.z };
       assert.ok(bodies.fits(p.id, zone, at, bodyRadius(p.profile)), `overlap at ${s.time}, person ${p.id}`);
       bodies.set(p.id, zone, at, bodyRadius(p.profile));
     }

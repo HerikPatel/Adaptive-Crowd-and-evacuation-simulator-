@@ -100,19 +100,20 @@ test("wide-corridor passing clears a slow walker, respects oncoming traffic and 
   const { s, edge, corridor } = stagedPassing("passing", false, true);
   s.start(); let shifted = false, returned = false;
   for (let tick = 0; tick < 18000 && s.running; tick++) {
-    const before = s.spectators.map(p => ({ at: s.position(p), state: structuredClone(p.state) }));
+    const before = s.spectators.map(p => { const at = s.physicalSample(p).position; return { at: { x: at.x, y: at.z }, state: structuredClone(p.state) }; });
     if (tick === 90) s.router.setClosed("gate-east", true); // a route closure during passing must preserve the maneuver
     s.update(STADIUM_STEP);
     const bodies = new DiscReservations();
     for (const p of s.spectators) {
       if (p.state.kind === "evacuated") continue;
-      const position = s.position(p), at = { x: position.x * 0.2, y: position.y * 0.2 }, radius = bodyRadius(p.profile);
+      const physical = s.physicalSample(p).position, position = { x: physical.x, y: physical.z }, at = position, radius = bodyRadius(p.profile);
       const zone = p.state.kind === "transfer" ? `transfer:${p.state.step.edgeId}` : s.surfaceOf(p)!;
       assert.ok(bodies.fits(p.id, zone, at, radius), `body overlap at ${s.time}`); bodies.set(p.id, zone, at, radius);
       if (p.state.kind === "walking" && p.state.step.edgeId === edge.id) {
         assert.ok(Math.abs(0.4 + (p.state.lateral ?? 0)) + radius < edge.widthMeters! / 2);
         const old = before[p.id];
-        if (old.state.kind === "walking" && old.state.step.edgeId === edge.id) assert.ok(Math.hypot(position.x - old.at.x, position.y - old.at.y) * 0.2 <= walkingSpeed(p.profile) * STADIUM_STEP + 1e-5, "lateral motion consumes the speed budget");
+        if (old.state.kind === "walking" && old.state.step.edgeId === edge.id && old.state.step.from === p.state.step.from)
+          assert.ok(Math.hypot(p.state.distance - old.state.distance, (p.state.lateral ?? 0) - (old.state.lateral ?? 0)) <= walkingSpeed(p.profile) * STADIUM_STEP + 1e-5, "lateral motion consumes the speed budget");
         shifted ||= (p.state.lateral ?? 0) > 0.7;
       }
     }
@@ -121,9 +122,10 @@ test("wide-corridor passing clears a slow walker, respects oncoming traffic and 
       if (q.id <= p.id) continue;
       const oldP = before[p.id], oldQ = before[q.id];
       if (oldP.state.kind !== "walking" || oldQ.state.kind !== "walking" || p.state.kind !== "walking" || q.state.kind !== "walking" ||
-          [oldP.state.step.edgeId, oldQ.state.step.edgeId, p.state.step.edgeId, q.state.step.edgeId].some(id => id !== edge.id)) continue;
-      const meters = (at: { x: number; y: number }) => ({ x: at.x * 0.2, y: at.y * 0.2 });
-      assert.ok(motionsClear(meters(oldP.at), meters(s.position(p)), meters(oldQ.at), meters(s.position(q)), bodyRadius(p.profile) + bodyRadius(q.profile)), "passing sweep clearance");
+          [oldP.state.step.edgeId, oldQ.state.step.edgeId, p.state.step.edgeId, q.state.step.edgeId].some(id => id !== edge.id) ||
+          oldP.state.step.from !== p.state.step.from || oldQ.state.step.from !== q.state.step.from) continue;
+      const physical = (person: typeof p) => { const at = s.physicalSample(person).position; return { x: at.x, y: at.z }; };
+      assert.ok(motionsClear(oldP.at, physical(p), oldQ.at, physical(q), bodyRadius(p.profile) + bodyRadius(q.profile)), "passing sweep clearance");
     }
     const fast = s.spectators[1].state;
     if (shifted && fast.kind !== "walking") returned = true;

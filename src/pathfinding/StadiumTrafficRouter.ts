@@ -1,4 +1,3 @@
-import { drawingLength, STADIUM_ASSUMPTIONS } from "../maps/stadiumNavigation";
 import { walkingSpeed } from "../simulation/PersonProfile";
 import type { StadiumSpectator } from "../simulation/StadiumSimulation";
 import { StadiumRouter, routeStepKey, type StadiumRoute, type StadiumRouteCosts, type StadiumRouteStep, type StadiumRoutingMode } from "./StadiumRouter";
@@ -22,16 +21,16 @@ export class StadiumTrafficRouter {
   private lengths: Map<string, number>;
 
   constructor(readonly router: StadiumRouter, readonly mode: StadiumRoutingMode) {
-    this.lengths = new Map(router.network.edges.map(e => [e.id, drawingLength(e.points) * STADIUM_ASSUMPTIONS.metersPerUnit]));
+    this.lengths = new Map(router.network.edges.map(e => [e.id, e.physicalPath.length]));
   }
 
   invalidatePerson(id: number) { this.plans.delete(id); }
   peek(id: number) { return this.plans.get(id)?.route ?? null; }
 
   sample(people: StadiumSpectator[], time: number) {
-    const changed = this.revision !== this.router.revision;
+    const changed = this.revision !== this.router.costRevision;
     if (!changed && time < this.sampledAt + TRAFFIC_SETTINGS.sampleSeconds - 1e-8) return;
-    this.revision = this.router.revision; this.sampledAt = time;
+    this.revision = this.router.costRevision; this.sampledAt = time;
     this.queues.clear();
     const occupancy = new Map<string, number>();
     const increment = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
@@ -67,7 +66,8 @@ export class StadiumTrafficRouter {
 
   private costs(p: StadiumSpectator): StadiumRouteCosts {
     // Shared fields use 0.1 m/s speed bands; physical movement retains the exact individual speed.
-    return this.mode === "adaptive" ? { speed: Math.max(0.5, Math.round(walkingSpeed(p.profile) * 10) / 10), delays: this.delays } : {};
+    const speed = Math.max(0.5, Math.round(walkingSpeed(p.profile) * 10) / 10);
+    return this.mode === "adaptive" ? { speed, delays: this.delays } : { speed };
   }
 
   private candidate(node: string, costs: StadiumRouteCosts): StadiumRoute | null {
@@ -79,17 +79,17 @@ export class StadiumTrafficRouter {
 
   choose(p: StadiumSpectator, node: string, time: number): StadiumRoute | null {
     let plan = this.plans.get(p.id);
-    const changed = plan?.revision !== this.router.revision;
+    const changed = plan?.revision !== this.router.costRevision;
     if (plan && !changed && (this.mode === "free-flow" || time < plan.checkedAt + TRAFFIC_SETTINGS.cooldownSeconds)) return plan.route;
     const costs = this.costs(p);
     const invalid = !plan?.route || !Number.isFinite(this.router.routeSeconds(plan.route.steps));
     const candidate = this.candidate(node, costs);
     if (!plan) {
-      plan = { route: candidate, checkedAt: time + (p.id % 8) * 0.25, revision: this.router.revision, visited: new Set() };
+      plan = { route: candidate, checkedAt: time + (p.id % 8) * 0.25, revision: this.router.costRevision, visited: new Set() };
       this.plans.set(p.id, plan); return candidate;
     }
     const old = plan.route;
-    plan.checkedAt = time + (p.id % 8) * 0.25; plan.revision = this.router.revision;
+    plan.checkedAt = time + (p.id % 8) * 0.25; plan.revision = this.router.costRevision;
     if (invalid || (changed && this.mode === "free-flow")) {
       if (old && candidate && !this.same(old, candidate)) this.forcedReroutes++;
       plan.route = candidate;

@@ -36,6 +36,24 @@ These coefficients and body-size approximations are designed for sensitivity exp
 
 Preferred speed controls walking and section approach motion. Transfer duration at entry is `configured minimum * max(1, 1.2 / preferredSpeed)`: slower people take longer, and faster people still respect the configured minimum. Queues and busy landings may add time. Admission rates remain separate capacity limits. Response delay is elapsed simulation time before leaving the seat; pause does not consume it.
 
+## Personal routing and commitment
+
+The stadium router uses Dijkstra over explicit nodes and edges. Walking-edge cost is `distance / preferredSpeed`; transfer cost uses the same adjusted minimum-duration formula as movement. Calls that omit a personal speed retain the 1.2 m/s reference behavior used by the separate route preview.
+
+Reset leaves every spectator without a chosen gate or route. When an individual's response delay expires during a run, that person evaluates the currently open network, receives a personal committed route, and advances an explicit route cursor instead of selecting a new path at every junction. Queue size, admission waiting, and landing backpressure do not enter route cost and never cause a route switch. Profile edits before the run change the inputs used at this later decision point; they do not create a route early.
+
+Closing a gate or transfer invalidates only committed routes whose unfinished steps require it. Someone already inside a connection completes that segment, preserving the duration captured at admission, and replans from the landing. If no open path exists, the spectator waits at the node and retries only when connectivity changes; reopening can therefore restore a route. Unrelated closures leave valid commitments unchanged. Transfer time/capacity edits affect later admissions and plans created afterward, but do not invalidate valid commitments.
+
+The route portion of the individual inspector stays hidden before a run starts. Afterward it reports readable route names once that person has chosen, their chosen gate, the current committed plan's estimate labeled as excluding queues, and the latest replacement reason. After evacuation it also reports actual elapsed simulation time from the start of the run, including response delay, movement, queues, closures, and rerouting.
+
+## Presentation contract
+
+`StadiumSimulation.renderFrame()` exposes an immutable presentation snapshot containing person IDs, schematic positions, surfaces, movement/waiting/blocked states, target gates, remaining committed route steps, actual transfer progress, and evacuation outcomes. Calling it cannot advance or mutate the simulation. Both stadium renderers consume this same frame; switching views changes presentation state only.
+
+The 3D renderer applies a separate SHI Stadium-inspired visual projection to those schematic positions. That projection bends seating paths onto a sloped bowl and places upper-deck and concourse movement at distinct elevations; it never writes projected coordinates back to the simulation. Spectators render as small destination-colored dots. A route line is created only for the selected spectator or the distinct committed routes of a selected section.
+
+Destination color never replaces behavioral state. An unassigned person is neutral. Once assigned, the person keeps the chosen gate color while waiting or traveling; outlines and markers communicate waiting, recent closure-driven replacement, selection, or disconnection. Evacuated people leave the active crowd rendering while gate totals retain their outcome.
+
 ## Evidence and limits
 
 [Bohannon (1997), *Comfortable and maximum walking speed of adults aged 20–79 years*](https://pubmed.ncbi.nlm.nih.gov/9143432/) measured 230 healthy volunteers over a short indoor walkway and reported associations with age, height and muscle strength. This motivates individual variation; it does **not** establish the coefficients above or predict an individual's evacuation behavior.
@@ -79,4 +97,4 @@ Resolving movement jointly allows a touching queue to advance together. Growing 
 
 ## Validation
 
-Tests cover deterministic and bounded profile sampling, gender-neutral speed calculation, invalid input atomicity, identical comparison seats, response delays, manual speed overrides, slower isolated evacuation, fast-motion tunneling, separate-floor reservations, and same-surface body clearance throughout a mixed 100-person run. Existing stadium tests cover closure/reopening, transfer rates and minimum duration, blocked landings, population conservation and 1,000-person completion. Browser checks cover profile inspection/editing, comparison mode, reset, pause and mobile layout.
+Tests cover deterministic and bounded profile sampling, gender-neutral speed calculation, invalid input atomicity, identical comparison seats, response delays, manual speed overrides, personal travel-cost calculations, speed-dependent route choice, commitment despite queue growth, unrelated and affected closures, disconnection/reopening, slower isolated evacuation, fast-motion tunneling, separate-floor reservations, and same-surface body clearance throughout a mixed 100-person run. Existing stadium scenarios also cover occupied-connection closure, transfer rates and minimum duration, blocked landings, population conservation, deterministic replay, and 1,000-person completion. Browser checks cover profile inspection/editing, comparison mode, reset, pause and mobile layout.

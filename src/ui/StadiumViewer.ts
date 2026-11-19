@@ -3,74 +3,94 @@ import {
   type StadiumFeature, type StadiumLayer,
 } from "../maps/stadium";
 import { StadiumRoutes, stadiumAssumptionsText } from "./StadiumRoutes";
+import { Stadium3DView, type StadiumLighting } from "./Stadium3DView";
 import { StadiumExperiments } from "./StadiumExperiments";
+import { STADIUM_DESTINATIONS, type StadiumViewLevel, type StadiumViewMode } from "./StadiumVisuals";
+import { physicalToSvg, sourceToPhysical, STADIUM_PHYSICAL_SEATS } from "../simulation/StadiumPhysicalGeometry";
+
+const VIEW_LEVELS: { id: StadiumViewLevel; name: string; description: string }[] = [
+  { id: "overview", name: "Overview", description: "All modeled surfaces and connections." },
+  { id: "lower-bowl", name: "Lower bowl", description: "Sections 101–144 and their access routes." },
+  { id: "upper-east", name: "East upper", description: "East upper deck and its ramp connection." },
+  { id: "upper-west", name: "West upper", description: "West upper deck and its ramp connection." },
+  { id: "concourse", name: "Concourse / gates", description: "Concourse circulation and the four exterior gate groups." },
+  { id: "connections", name: "Connections", description: "Modeled passages, stairs, and ramps between surfaces." },
+];
 
 /** SVG stadium simulation, independent of the original single-grid experiments. */
 export class StadiumViewer {
   private layer: StadiumLayer = "overview";
+  private level: StadiumViewLevel = "overview";
+  private viewMode: StadiumViewMode = "2d";
   private selected: StadiumFeature | undefined;
   private showConnections = true;
   private zoom = 1;
-  private view = { x: 0, y: 0, width: STADIUM.width as number, height: STADIUM.height as number };
+  private view = { x: 0, y: 0, width: STADIUM.height as number, height: STADIUM.width as number };
   private svg: SVGSVGElement;
   private picker: HTMLSelectElement;
   private routes: StadiumRoutes;
+  private threeD?: Stadium3DView;
 
   constructor(private root: HTMLElement) {
     root.innerHTML = `
       <div class="stadium-heading-row"><div><span class="eyebrow stadium-eyebrow">RUTGERS / MAP STUDY</span>
-        <h2 id="stadium-heading" tabindex="-1">SHI Stadium <span class="stadium-badge">Schematic simulation</span></h2>
+        <h2 id="stadium-heading" tabindex="-1">SHI Stadium <span class="stadium-badge">Linked 2D + 3D simulation</span></h2>
         <p>${STADIUM.scenario}. Follow spectators from the stands through transfers to exterior gates.</p></div>
         <button type="button" data-menu>Back to setup</button></div>
       <div class="stadium-layout"><section class="stage" aria-label="Stadium map viewer">
-        <div class="stadium-toolbar"><div class="stadium-layers" role="group" aria-label="Map layer">
-          ${STADIUM_LAYERS.map(l => `<button type="button" data-layer="${l.id}" aria-pressed="${l.id === this.layer}">${l.name}</button>`).join("")}
+        <div class="stadium-view-switch" role="group" aria-label="Stadium view"><button type="button" data-view="2d" aria-pressed="true">2D overview</button><button type="button" data-view="3d" aria-pressed="false">Architectural 3D</button><span class="stadium-schematic-label">SHI STADIUM-INSPIRED · VISUAL PROJECTION</span></div>
+        <div class="stadium-toolbar"><div class="stadium-layers" role="group" aria-label="Map level">
+          ${VIEW_LEVELS.map(l => `<button type="button" data-level="${l.id}" aria-pressed="${l.id === this.level}">${l.name}</button>`).join("")}
         </div><div class="stadium-zoom" role="group" aria-label="Map zoom">
           <button type="button" data-zoom="out" aria-label="Zoom out">−</button><output id="stadium-zoom-value" aria-label="Zoom level">100%</output>
           <button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="fit">Fit map</button>
         </div></div>
         <p id="stadium-layer-description" class="stadium-layer-description"></p>
         <section id="stadium-crowd-controls" aria-label="Stadium crowd controls"></section>
-        <div id="stadium-route-tools"></div>
-        <svg id="stadium-map" class="stadium-svg" viewBox="0 0 ${STADIUM.width} ${STADIUM.height}" role="group" aria-labelledby="stadium-map-title" aria-describedby="stadium-map-description">
+        <div id="stadium-blocked-warning" class="stadium-blocked-warning" role="alert" hidden></div>
+        <details id="stadium-reference-panel" class="stadium-collapsible"><summary>Reference-speed route preview</summary><div id="stadium-route-tools"></div>
+          <section class="stadium-route-summary" aria-label="Reference-speed route preview results"><span class="stadium-detail-tag">REFERENCE-SPEED ROUTE PREVIEW · EXCLUDES QUEUES</span><strong id="stadium-route-status" role="status"></strong><p id="stadium-route-measures"></p><p id="stadium-route-layer-note" class="field-help"></p>
+            <details><summary>Route steps</summary><ol id="stadium-route-steps"></ol></details>
+            <div class="stadium-connectivity-row"><strong id="stadium-connectivity" role="status"></strong><button type="button" id="stadium-reset-network">Reset route assumptions</button></div><p id="stadium-disconnected"></p>
+          </section></details>
+        <div class="stadium-view-stack"><svg id="stadium-map" class="stadium-svg hide-section-labels" viewBox="0 0 ${STADIUM.height} ${STADIUM.width}" role="group" aria-labelledby="stadium-map-title" aria-describedby="stadium-map-description">
           <title id="stadium-map-title">SHI Stadium schematic</title>
-          <desc id="stadium-map-description">East is up, north is left. Approximate geometry, not to scale. Use the feature selector or click a section, gate or connection to inspect it.</desc>
+          <desc id="stadium-map-description">North is up. Shared physical geometry in meters is projected into this view. Use the feature selector or click a section, gate or connection to inspect it.</desc>
           <g aria-hidden="true" class="stadium-context">
-            <g class="stadium-compass" transform="translate(100 80)"><path d="M-30 0H30 M0-30V30"/><path d="M-30 0l8-5v10Z"/><text x="0" y="-41">E</text><text x="-44" y="5">N</text><text x="44" y="5">S</text><text x="0" y="50">W</text></g>
-            <g data-context="upper"><rect class="stadium-reference-area" x="350" y="32" width="500" height="28" rx="5"/><text class="stadium-caption" x="600" y="51">HALE CENTER · REFERENCE ONLY</text>
-              <rect class="stadium-reference-area" x="350" y="164" width="500" height="26" rx="4"/><text class="stadium-caption" x="600" y="182">CLUB 1–14 · REFERENCE ONLY</text>
-              <text class="stadium-deck-name" x="600" y="81">EAST UPPER DECK</text><text class="stadium-deck-name" x="600" y="703">WEST UPPER DECK</text></g>
-            <g id="stadium-concourse-ring"><path class="stadium-concourse" d="M350 205H850 A235 235 0 0 1 850 675H350 A235 235 0 0 1 350 205Z"/>
-              <path class="stadium-concourse-guide" d="M350 205H850 A235 235 0 0 1 850 675H350 A235 235 0 0 1 350 205Z"/></g>
-            <path class="stadium-bowl-outline" d="M350 280H850 A110 160 0 0 1 850 600H350 A110 160 0 0 1 350 280Z"/>
-            <rect class="stadium-field" x="350" y="320" width="500" height="240" rx="4"/>
-            <path class="stadium-field-lines" d="${Array.from({ length: 11 }, (_, i) => `M${350 + (i + 1) * 500 / 12} 330V550`).join(" ")}"/>
-            <text class="stadium-side-name" x="600" y="306">HOME / EAST</text><text class="stadium-side-name" x="600" y="584">VISITOR / WEST</text>
-            <rect class="stadium-field-caption" x="425" y="404" width="350" height="72" rx="8"/>
-            <text class="stadium-field-name" x="600" y="432">FOOTBALL FIELD</text><text class="stadium-caption" x="600" y="455">Reference only · no spectator route</text>
+            <g class="stadium-compass" transform="translate(80 95)"><path d="M-30 0H30 M0-30V30"/><path d="M0-30l-5 8h10Z"/><text x="0" y="-41">N</text><text x="44" y="5">E</text><text x="0" y="50">S</text><text x="-44" y="5">W</text></g>
+            <g data-context="upper"><text class="stadium-deck-name" x="760" y="600" transform="rotate(90 760 600)">EAST UPPER DECK</text><text class="stadium-deck-name" x="120" y="600" transform="rotate(-90 120 600)">WEST UPPER DECK</text></g>
+            <g id="stadium-concourse-ring"><rect class="stadium-concourse" x="205" y="205" width="470" height="790" rx="235"/><rect class="stadium-concourse-guide" x="205" y="205" width="470" height="790" rx="235"/></g>
+            <rect class="stadium-bowl-outline" x="280" y="280" width="320" height="640" rx="160"/>
+            <rect class="stadium-field" x="320" y="350" width="240" height="500" rx="4"/>
+            <path class="stadium-field-lines" d="${Array.from({ length: 11 }, (_, i) => `M330 ${350 + (i + 1) * 500 / 12}H550`).join(" ")}"/>
+            <text class="stadium-side-name" x="292" y="600" transform="rotate(-90 292 600)">WEST</text><text class="stadium-side-name" x="588" y="600" transform="rotate(90 588 600)">EAST</text>
+            <rect class="stadium-field-caption" x="354" y="564" width="172" height="72" rx="8"/>
+            <text class="stadium-field-name" x="440" y="592">FOOTBALL FIELD</text><text class="stadium-caption" x="440" y="615">No spectator route</text>
           </g>
           ${STADIUM_FEATURES.map(f => this.featureMarkup(f)).join("")}
-          <g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g>
-        </svg>
-        <div class="stadium-legend"><span><i class="swatch lower"></i>100 level</span><span><i class="swatch upper"></i>200 level</span>
-          <span><i class="swatch gate"></i>Gate group</span><span><i class="swatch connection"></i>Proposed link</span><span><i class="swatch reference"></i>Elevator reference</span><span><i class="swatch route"></i>Selected route</span></div>
-        <p class="stadium-map-help">East is up. Zoom in, then drag the background to pan. Shapes are approximate and not to scale.</p>
-        <div class="stadium-crowd-legend"><span>● Moving</span><span>● Waiting</span><span>● In transit</span><span>● Without a route</span></div>
-        <section id="stadium-crowd-stats" class="stadium-route-summary" aria-label="Stadium live measurements"></section>
-        <section class="stadium-route-summary" aria-label="Route preview results"><span class="stadium-detail-tag">ROUTE INSPECTION · FREE-FLOW ESTIMATE</span><strong id="stadium-route-status" role="status"></strong><p id="stadium-route-measures"></p><p id="stadium-route-layer-note" class="field-help"></p>
-          <details><summary>Route steps</summary><ol id="stadium-route-steps"></ol></details>
-          <div class="stadium-connectivity-row"><strong id="stadium-connectivity" role="status"></strong><button type="button" id="stadium-reset-network">Reset route assumptions</button></div><p id="stadium-disconnected"></p>
-        </section>
+          <g id="stadium-seating-detail" aria-hidden="true"></g><g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-committed-routes" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g><g id="stadium-state-markers" aria-hidden="true"></g>
+        </svg><div id="stadium-3d" class="stadium-3d" hidden><div id="stadium-3d-loading">Choose 3D to load the SHI Stadium-inspired scene.</div></div></div>
+        <div id="stadium-3d-controls" class="stadium-3d-controls" hidden>
+          <div role="group" aria-label="3D camera"><button type="button" id="stadium-follow-person" aria-pressed="false" disabled>Follow selected person</button><button type="button" data-camera="reset">Reset</button><button type="button" data-camera="top-down">Top-down</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button></div>
+          <div class="stadium-lighting-controls" role="group" aria-label="3D lighting"><button type="button" data-lighting="day" aria-pressed="true">Day</button><button type="button" data-lighting="night" aria-pressed="false">Stadium lights</button></div>
+          <div class="stadium-cutaway-controls" role="group" aria-label="3D structure"><button type="button" data-cutaway="true" aria-pressed="true">Evacuation cutaway</button><button type="button" data-cutaway="false" aria-pressed="false">Full architecture</button></div><output id="stadium-3d-performance"></output></div>
+        <div id="stadium-3d-error" class="error" role="alert"><span id="stadium-3d-error-text"></span><button type="button" id="stadium-return-2d" hidden>Return to 2D</button></div>
+        <div class="stadium-legend stadium-destination-legend">${Object.entries(STADIUM_DESTINATIONS).map(([id, gate]) => `<span data-gate-legend="${id}"><i class="swatch" style="background:${gate.color}"></i>${gate.label}</span>`).join("")}
+          <span><i class="swatch neutral"></i>Not assigned</span><span><i class="swatch waiting"></i>Waiting outline</span><span><i class="swatch rerouting"></i>Rerouting marker</span><span><i class="swatch blocked"></i>Blocked route</span></div>
+        <p class="stadium-map-help">The 2D map remains schematic. The 3D scene is a SHI Stadium-inspired visual projection; orbit with drag and zoom with the wheel or trackpad.</p>
+        <details id="stadium-measurements" class="stadium-collapsible"><summary>Detailed measurements</summary><section id="stadium-crowd-stats" class="stadium-route-summary" aria-label="Stadium live measurements"></section></details>
       </section><aside class="stadium-details" aria-label="Map details">
-        <span class="eyebrow">EXPLORE THE MAP</span>
+        <span class="eyebrow">CONTEXTUAL INSPECTOR</span>
         <label for="stadium-feature-picker">Inspect a section, gate or connection</label><select id="stadium-feature-picker"></select>
-        <div class="stadium-toggles"><label class="check"><input id="stadium-labels" type="checkbox" checked> Section labels</label>
-          <label class="check"><input id="stadium-connections" type="checkbox" checked> Proposed connections</label></div>
+        <label for="stadium-context-person-picker">Inspect a spectator</label><select id="stadium-context-person-picker"><option value="">Choose a spectator…</option></select>
         <div id="stadium-feature-details" aria-live="polite" aria-atomic="true"></div>
+        <div id="stadium-person-context" hidden></div>
         <div id="stadium-connection-controls" hidden></div>
-        <div class="stadium-scope"><strong>Connected levels, timed transfers</strong><p>Inspect a ramp, stair, gate or lower section to change its connection. Changes pause the run. Closures prevent new entries; people already traveling finish their current connection, then replan. Reset crowd keeps your route settings.</p><p>Counts update across all levels. Only passing an exterior gate counts as evacuation. The highlighted route is an inspection aid; spectators choose the lowest assumed travel time to any open gate.</p></div>
+        <details class="stadium-display-panel"><summary>Display settings</summary><div class="stadium-toggles"><label class="check"><input id="stadium-labels" type="checkbox"> Section labels</label>
+          <label class="check"><input id="stadium-connections" type="checkbox" checked> Proposed connections</label></div></details>
+        <div class="stadium-scope"><strong>Connected levels, timed transfers</strong><p>Inspect a ramp, stair, gate or lower section to change its connection. Changes pause the run. Closures prevent new entries; people already traveling finish their current connection, then replan. Reset crowd keeps your route settings.</p><p>Counts update across all levels. Only passing an exterior gate counts as evacuation. The highlighted route is a reference-speed inspection aid. After their response delay, each spectator chooses from the currently open routes using their preferred walking speed and commits; queues delay movement but do not change that route.</p></div>
         <details class="stadium-sources"><summary>Sources & assumptions</summary>
-          <p>Section labels, gate groups and access symbols come from Rutgers. All shapes are schematic; the concourse ring and dashed connections are modeling assumptions. Layers do not represent three uniform building floors.</p>
+          <p>Section labels, gate groups and access symbols come from Rutgers. The 2D map remains schematic. The separate 3D projection is inspired by SHI Stadium's open bowl, sideline upper decks, south-end expansion, video board and entrance façade; it is not a measured digital twin. Official branding is intentionally omitted.</p>
           <p>${stadiumAssumptionsText}</p><p>Default transfer assumptions: ramps 30 s at 2 people/s; stairs 12 s at 1 person/s; bowl openings 3 s at 2 people/s. Connectors lead toward the concourse; gates lead outside. Settings last for this visit.</p>
           <ul>${Object.values(STADIUM_SOURCES).map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title}</a></li>`).join("")}</ul>
           <p>References inspected ${STADIUM.inspected}. Premium areas and the field are reference only. Elevator evacuation use is unspecified.</p>
@@ -78,14 +98,20 @@ export class StadiumViewer {
       </aside></div><section id="stadium-experiments" class="screen-card" aria-label="Stadium experiment comparisons"></section>`;
     this.svg = root.querySelector<SVGSVGElement>("#stadium-map")!;
     this.picker = root.querySelector<HTMLSelectElement>("#stadium-feature-picker")!;
-    root.querySelectorAll<HTMLButtonElement>("[data-layer]").forEach(button => button.addEventListener("click", () => {
-      this.layer = button.dataset.layer as StadiumLayer;
+    root.querySelectorAll<HTMLButtonElement>("[data-level]").forEach(button => button.addEventListener("click", () => {
+      this.level = button.dataset.level as StadiumViewLevel;
+      this.layer = this.mapLayer(this.level);
       this.updateVisibility();
     }));
     this.picker.addEventListener("change", () => this.select(this.picker.value));
+    root.querySelector<HTMLSelectElement>("#stadium-context-person-picker")!.addEventListener("change", event => {
+      const value = (event.target as HTMLSelectElement).value;
+      if (value !== "") this.selectPerson(Number(value));
+    });
     this.svg.addEventListener("click", event => {
       const feature = (event.target as Element).closest<SVGGElement>("[data-feature]");
       if (feature) this.select(feature.dataset.feature);
+      else if (!(event.target as Element).closest("[data-person]")) this.clearPersonAndOverview();
     });
     this.svg.addEventListener("keydown", event => {
       const feature = (event.target as Element).closest<SVGGElement>("[data-feature]");
@@ -104,52 +130,109 @@ export class StadiumViewer {
     root.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach(button => button.addEventListener("click", () => {
       const action = button.dataset.zoom;
       const next = action === "fit" ? 1 : Math.max(1, Math.min(4, this.zoom * (action === "in" ? 1.5 : 1 / 1.5)));
-      const width = STADIUM.width / next, height = STADIUM.height / next;
+      const width = STADIUM.height / next, height = STADIUM.width / next;
       this.view = { x: this.view.x + (this.view.width - width) / 2, y: this.view.y + (this.view.height - height) / 2, width, height };
       this.zoom = next;
-      this.updateView();
+      this.updateView(); this.updateSeatingDetail();
     }));
-    this.routes = new StadiumRoutes(root, this.svg, id => this.select(id));
+    this.routes = new StadiumRoutes(root, this.svg, id => this.select(id), id => this.selectPerson(id));
     const experiments = new StadiumExperiments(root.querySelector("#stadium-experiments")!, () => this.routes.pause());
     root.querySelector("[data-menu]")!.addEventListener("click", () => experiments.cancel());
+    const personPanel = root.querySelector<HTMLDetailsElement>(".stadium-profile-panel")!;
+    root.querySelector("#stadium-person-context")!.append(personPanel);
+    personPanel.open = true;
+    personPanel.querySelector<HTMLLabelElement>('label[for="stadium-person-picker"]')!.hidden = true;
+    personPanel.querySelector<HTMLSelectElement>("#stadium-person-picker")!.hidden = true;
+    root.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(button => button.addEventListener("click", () => void this.switchView(button.dataset.view as StadiumViewMode)));
+    root.querySelector<HTMLDetailsElement>("#stadium-reference-panel")!.addEventListener("toggle", event =>
+      this.routes.setReferenceVisible((event.target as HTMLDetailsElement).open));
+    root.querySelectorAll<HTMLButtonElement>("[data-camera]").forEach(button => button.addEventListener("click", () => {
+      this.threeD?.preset(button.dataset.camera as "reset" | "top-down" | "connections" | "gates");
+      this.updateFollowControl();
+    }));
+    root.querySelector<HTMLButtonElement>("#stadium-follow-person")!.addEventListener("click", () => {
+      const id = this.routes.selectedPersonId;
+      const person = id === null ? undefined : this.routes.renderFrame().people.find(candidate => candidate.id === id);
+      if (person && person.movementState !== "evacuated") this.threeD?.focusPerson(person, true);
+      this.updateFollowControl();
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-lighting]").forEach(button => button.addEventListener("click", () => {
+      const lighting = button.dataset.lighting as StadiumLighting;
+      this.threeD?.setLighting(lighting);
+      root.querySelectorAll<HTMLElement>("[data-lighting]").forEach(control =>
+        control.setAttribute("aria-pressed", String(control.dataset.lighting === lighting)));
+    }));
+    root.querySelectorAll<HTMLButtonElement>("[data-cutaway]").forEach(button => button.addEventListener("click", () => {
+      const value = button.dataset.cutaway === "true"; this.threeD?.setCutaway(value);
+      root.querySelectorAll<HTMLElement>("[data-cutaway]").forEach(control => control.setAttribute("aria-pressed", String((control.dataset.cutaway === "true") === value)));
+    }));
+    root.querySelector("#stadium-return-2d")!.addEventListener("click", () => {
+      this.root.querySelector("#stadium-3d-error-text")!.textContent = "";
+      this.root.querySelector<HTMLElement>("#stadium-return-2d")!.hidden = true;
+      void this.switchView("2d");
+    });
     this.bindPan();
     this.updateVisibility();
     this.updateView();
   }
 
-  update(delta: number, active: boolean) { this.routes.update(delta, active); }
+  update(delta: number, active: boolean) {
+    this.routes.update(delta, active);
+    this.syncPersonPicker();
+    if (active && this.viewMode === "3d" && this.threeD) {
+      this.threeD.render(this.routes.renderFrame());
+      this.updateFollowControl();
+    }
+  }
   pause() { this.routes.pause(); }
 
   private featureMarkup(f: StadiumFeature): string {
     let shape: string;
     if (f.kind === "section") {
-      shape = `<polygon points="${f.polygon.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}"/><text class="stadium-section-label" x="${f.at.x}" y="${f.at.y + 5}">${f.label}</text>`;
+      const at = physicalToSvg(sourceToPhysical(f.at));
+      shape = `<polygon points="${f.polygon.map(p => { const point = physicalToSvg(sourceToPhysical(p)); return `${point.x.toFixed(2)},${point.y.toFixed(2)}`; }).join(" ")}"/><text class="stadium-section-label" x="${at.x}" y="${at.y + 5}">${f.label}</text>`;
     } else {
       const isGate = f.kind === "gate", halfWidth = isGate ? 47 : 19;
+      const at = physicalToSvg(sourceToPhysical(f.at));
       const line = f.kind === "connector"
-        ? `<path class="stadium-link" d="M${f.from.point.x} ${f.from.point.y} L${f.at.x} ${f.at.y} L${f.to.point.x} ${f.to.point.y}"/><circle class="stadium-endpoint" cx="${f.from.point.x}" cy="${f.from.point.y}" r="4"/><circle class="stadium-endpoint" cx="${f.to.point.x}" cy="${f.to.point.y}" r="4"/>`
-        : isGate ? `<path class="stadium-link" d="M${f.approach.x} ${f.approach.y} L${f.at.x} ${f.at.y}"/>` : "";
-      shape = `${line}<rect x="${f.at.x - halfWidth}" y="${f.at.y - 17}" width="${halfWidth * 2}" height="34" rx="6"/><text x="${f.at.x}" y="${f.at.y + 5}">${f.label}</text>${isGate ? `<text class="stadium-gate-side" x="${f.at.x}" y="${f.at.y - 27}">${f.side.toUpperCase()}</text>` : ""}`;
+        ? (() => { const from = physicalToSvg(sourceToPhysical(f.from.point)), to = physicalToSvg(sourceToPhysical(f.to.point)); return `<path class="stadium-link" d="M${from.x} ${from.y} L${at.x} ${at.y} L${to.x} ${to.y}"/><circle class="stadium-endpoint" cx="${from.x}" cy="${from.y}" r="4"/><circle class="stadium-endpoint" cx="${to.x}" cy="${to.y}" r="4"/>`; })()
+        : isGate ? (() => { const approach = physicalToSvg(sourceToPhysical(f.approach)); return `<path class="stadium-link" d="M${approach.x} ${approach.y} L${at.x} ${at.y}"/>`; })() : "";
+      shape = `${line}<rect x="${at.x - halfWidth}" y="${at.y - 17}" width="${halfWidth * 2}" height="34" rx="6"/><text x="${at.x}" y="${at.y + 5}">${f.label}</text>${isGate ? `<text class="stadium-gate-side" x="${at.x}" y="${at.y - 27}">${f.side.toUpperCase()}</text>` : ""}`;
     }
     const level = f.kind === "section" ? f.surfaceId === "lower-bowl" ? "lower" : "upper" : "";
     return `<g class="stadium-feature feature-${f.kind} ${level}" data-feature="${f.id}" role="button" tabindex="0" aria-label="${f.name}" aria-pressed="false"><title>${f.name}</title>${shape}</g>`;
   }
 
   private visible(f: StadiumFeature): boolean {
-    return featureOnLayer(f, this.layer) && (this.showConnections || f.kind !== "connector");
+    if (!this.showConnections && f.kind === "connector") return false;
+    if (this.level === "overview") return true;
+    if (this.level === "connections") return f.kind === "connector";
+    if (f.kind === "gate") return this.level === "concourse";
+    if (f.kind === "connector") return f.from.surfaceId === this.level || f.to.surfaceId === this.level;
+    return f.surfaceId === this.level;
   }
 
   private updateVisibility() {
     for (const f of STADIUM_FEATURES) {
       this.svg.querySelector(`[data-feature="${f.id}"]`)!.toggleAttribute("hidden", !this.visible(f));
     }
-    this.root.querySelectorAll<HTMLElement>("[data-layer]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.layer === this.layer)));
-    this.root.querySelector("#stadium-layer-description")!.textContent = STADIUM_LAYERS.find(l => l.id === this.layer)!.description;
-    this.svg.querySelector("[data-context=upper]")!.toggleAttribute("hidden", this.layer !== "overview" && this.layer !== "upper");
-    this.svg.querySelector("#stadium-concourse-ring")!.classList.toggle("muted", this.layer === "lower" || this.layer === "upper");
+    this.root.querySelectorAll<HTMLElement>("[data-level]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.level === this.level)));
+    this.root.querySelector("#stadium-layer-description")!.textContent = VIEW_LEVELS.find(l => l.id === this.level)!.description;
+    this.svg.querySelector("[data-context=upper]")!.toggleAttribute("hidden", !["overview", "upper-east", "upper-west"].includes(this.level));
+    this.svg.querySelector("#stadium-concourse-ring")!.classList.toggle("muted", ["lower-bowl", "upper-east", "upper-west"].includes(this.level));
     this.picker.innerHTML = `<option value="">Choose a feature…</option>` + STADIUM_FEATURES.filter(f => this.visible(f)).map(f => `<option value="${f.id}">${f.name}</option>`).join("");
-    this.select(this.selected && this.visible(this.selected) ? this.selected.id : undefined);
+    const personId = this.routes.selectedPersonId;
+    if (personId === null) this.select(this.selected && this.visible(this.selected) ? this.selected.id : undefined);
+    else {
+      this.selected = undefined; this.picker.value = "";
+      this.svg.querySelectorAll<SVGGElement>("[data-feature]").forEach(el => el.setAttribute("aria-pressed", "false"));
+    }
     this.routes.setLayer(this.layer, this.showConnections);
+    this.routes.setViewLevel(this.level);
+    if (personId === null) this.routes.selectSection(this.selected?.kind === "section" ? this.selected.id : null);
+    this.threeD?.setLevel(this.level);
+    this.threeD?.setSelection(personId, personId === null && this.selected?.kind === "section" ? this.selected.id : null);
+    this.updateSeatingDetail();
   }
 
   private select(id?: string) {
@@ -157,6 +240,12 @@ export class StadiumViewer {
     this.picker.value = this.selected?.id ?? "";
     this.svg.querySelectorAll<SVGGElement>("[data-feature]").forEach(el => el.setAttribute("aria-pressed", String(el.dataset.feature === this.selected?.id)));
     this.routes.inspectFeature(this.selected);
+    this.routes.clearPersonSelection();
+    this.routes.selectSection(this.selected?.kind === "section" ? this.selected.id : null);
+    this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = false;
+    this.threeD?.setSelection(null, this.selected?.kind === "section" ? this.selected.id : null);
+    if (this.selected?.kind === "section" && this.viewMode === "2d") this.frameSection(this.selected);
     const f = this.selected;
     const details = this.root.querySelector("#stadium-feature-details")!;
     if (!f) {
@@ -174,9 +263,122 @@ export class StadiumViewer {
       <p class="stadium-evidence">Source: ${f.sources.map(id => `<a href="${STADIUM_SOURCES[id].url}" target="_blank" rel="noopener noreferrer">${STADIUM_SOURCES[id].title}</a>`).join(" · ")}</p>`;
   }
 
+  private selectPerson(id: number) {
+    if (this.routes.selectedPersonId === id) { this.clearPersonAndOverview(); return; }
+    this.selected = undefined; this.picker.value = "";
+    this.svg.querySelectorAll<SVGGElement>("[data-feature]").forEach(el => el.setAttribute("aria-pressed", "false"));
+    this.routes.selectPerson(id);
+    this.root.querySelector<HTMLSelectElement>("#stadium-context-person-picker")!.value = String(id);
+    this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#stadium-connection-controls")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = false;
+    this.threeD?.setSelection(id, null);
+    this.updateFollowControl();
+  }
+
+  private clearPersonAndOverview() {
+    this.routes.clearPersonSelection();
+    this.root.querySelector<HTMLSelectElement>("#stadium-context-person-picker")!.value = "";
+    this.root.querySelector<HTMLElement>("#stadium-person-context")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#stadium-feature-details")!.hidden = false;
+    this.threeD?.setSelection(null, null); this.threeD?.setFollowing(false); this.updateFollowControl();
+  }
+
+  private frameSection(section: Extract<StadiumFeature, { kind: "section" }>) {
+    const points = section.polygon.map(point => physicalToSvg(sourceToPhysical(point)));
+    const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
+    const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
+    const width = Math.max(120, (maxX - minX) * 3.2), height = width * STADIUM.width / STADIUM.height;
+    this.view = { x: (minX + maxX - width) / 2, y: (minY + maxY - height) / 2, width, height };
+    this.zoom = STADIUM.height / width; this.updateView(); this.updateSeatingDetail();
+  }
+
+  private updateSeatingDetail() {
+    const group = this.svg.querySelector("#stadium-seating-detail");
+    if (!group) return;
+    const selectedId = this.selected?.kind === "section" ? this.selected.id : null;
+    if (this.zoom < 1.8 && !selectedId) { group.replaceChildren(); return; }
+    const ids = selectedId ? [selectedId] : STADIUM.sections.filter(section => this.visible(section)).map(section => section.id);
+    group.innerHTML = ids.flatMap(id => {
+      const seats = STADIUM_PHYSICAL_SEATS.get(id) ?? [];
+      const seatDots = seats.map(seat => { const point = physicalToSvg(seat.position); return `<circle class="stadium-physical-seat" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="1.15"/>`; }).join("");
+      const rows = new Map<number, (typeof seats)[number][]>();
+      for (const seat of seats) rows.set(seat.row, [...(rows.get(seat.row) ?? []), seat]);
+      const rowPaths = [...rows.values()].map(row => {
+        const ordered = [...row].sort((a, b) => a.position.x - b.position.x || a.position.z - b.position.z);
+        const points = [ordered[0].position, ordered.at(-1)!.position].map(physicalToSvg);
+        return `<path class="stadium-row-access is-row" d="M${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)} L${points[1].x.toFixed(2)} ${points[1].y.toFixed(2)}"/>`;
+      }).join("");
+      const sidePaths = (["left", "right"] as const).map(side => {
+        const sideSeats = [...rows.values()].map(row => row.find(seat => seat.side === side)).filter((seat): seat is (typeof seats)[number] => Boolean(seat)).sort((a, b) => a.row - b.row);
+        if (!sideSeats.length) return "";
+        const aislePoints = sideSeats.map(seat => seat.accessPath.points[1]);
+        aislePoints.push(sideSeats.at(-1)!.accessPath.points.at(-1)!);
+        return `<path class="stadium-row-access is-aisle" d="${aislePoints.map((point, index) => { const projected = physicalToSvg(point); return `${index ? "L" : "M"}${projected.x.toFixed(2)} ${projected.y.toFixed(2)}`; }).join(" ")}"/>`;
+      }).join("");
+      const paths = `${rowPaths}${sidePaths}`;
+      const section = STADIUM.sections.find(candidate => candidate.id === id)!;
+      const clip = section.polygon.map(point => { const projected = physicalToSvg(sourceToPhysical(point)); return `${projected.x.toFixed(2)},${projected.y.toFixed(2)}`; }).join(" ");
+      return `<clipPath id="seating-clip-${id}"><polygon points="${clip}"/></clipPath><g data-seating-section="${id}" clip-path="url(#seating-clip-${id})">${paths}${seatDots}</g>`;
+    }).join("");
+  }
+
+  private mapLayer(level: StadiumViewLevel): StadiumLayer {
+    if (level === "lower-bowl") return "lower";
+    if (level === "upper-east" || level === "upper-west") return "upper";
+    if (level === "concourse") return "concourse";
+    return "overview";
+  }
+
+  private async switchView(mode: StadiumViewMode) {
+    if (mode === this.viewMode) return;
+    if (mode === "3d") {
+      try {
+        if (!this.threeD) {
+          const container = this.root.querySelector<HTMLElement>("#stadium-3d")!;
+          this.threeD = new Stadium3DView(container, this.routes.getRouter(), id => this.selectPerson(id), () => this.clearPersonAndOverview(),
+            this.root.querySelector<HTMLElement>("#stadium-3d-performance")!);
+          await this.threeD.initialize(); this.threeD.setLevel(this.level);
+          this.threeD.setSelection(this.routes.selectedPersonId, this.selected?.kind === "section" ? this.selected.id : null);
+        }
+        this.root.querySelector("#stadium-3d-error-text")!.textContent = "";
+        this.root.querySelector<HTMLElement>("#stadium-return-2d")!.hidden = true;
+      } catch (error) {
+        this.root.querySelector("#stadium-3d-error-text")!.textContent = `3D view unavailable: ${(error as Error).message} The 2D simulator remains active. `;
+        this.root.querySelector<HTMLElement>("#stadium-return-2d")!.hidden = false;
+        return;
+      }
+    }
+    this.viewMode = mode; this.routes.setViewMode(mode);
+    this.svg.toggleAttribute("hidden", mode !== "2d");
+    this.root.querySelector<HTMLElement>("#stadium-3d")!.hidden = mode !== "3d";
+    this.root.querySelector<HTMLElement>("#stadium-3d-controls")!.hidden = mode !== "3d";
+    this.root.querySelector<HTMLElement>(".stadium-zoom")!.hidden = mode !== "2d";
+    this.root.querySelectorAll<HTMLElement>("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === mode)));
+    if (mode === "3d" && this.threeD) this.threeD.render(this.routes.renderFrame());
+    this.updateFollowControl();
+  }
+
+  private syncPersonPicker() {
+    const picker = this.root.querySelector<HTMLSelectElement>("#stadium-context-person-picker")!;
+    const frame = this.routes.renderFrame();
+    if (picker.options.length === frame.population + 1) return;
+    picker.innerHTML = `<option value="">Choose a spectator…</option>` + frame.people.map(person =>
+      `<option value="${person.id}">Spectator ${person.id + 1} · ${person.sectionId.replace("section-", "Section ")}</option>`).join("");
+  }
+
+  private updateFollowControl() {
+    const button = this.root.querySelector<HTMLButtonElement>("#stadium-follow-person");
+    if (!button) return;
+    const id = this.routes.selectedPersonId;
+    const person = id === null ? undefined : this.routes.renderFrame().people.find(candidate => candidate.id === id);
+    button.disabled = !person || person.movementState === "evacuated" || !this.threeD;
+    button.setAttribute("aria-pressed", String(Boolean(person && this.threeD?.isFollowing)));
+  }
+
   private updateView() {
-    this.view.x = Math.max(0, Math.min(STADIUM.width - this.view.width, this.view.x));
-    this.view.y = Math.max(0, Math.min(STADIUM.height - this.view.height, this.view.y));
+    this.view.x = Math.max(0, Math.min(STADIUM.height - this.view.width, this.view.x));
+    this.view.y = Math.max(0, Math.min(STADIUM.width - this.view.height, this.view.y));
     this.svg.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.width} ${this.view.height}`);
     this.root.querySelector("#stadium-zoom-value")!.textContent = `${Math.round(this.zoom * 100)}%`;
     this.root.querySelector<HTMLButtonElement>("[data-zoom=out]")!.disabled = this.zoom === 1;

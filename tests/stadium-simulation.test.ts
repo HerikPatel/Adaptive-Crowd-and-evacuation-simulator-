@@ -160,6 +160,89 @@ test("a gate closure reroutes moving crowds without admitting new people to that
   assert.ok(s.snapshot().exits["gate-north"] > 0);
 });
 
+test("spectators retain committed routes when queues grow and unrelated connections close", () => {
+  const r = new StadiumRouter();
+  r.setParameters("ramp-east", { travelSeconds: 30, capacityPerSecond: 0.1 });
+  const s = new StadiumSimulation(r, { count: 12, sections: ["section-217"], profileMode: "uniform" });
+  assert.ok(s.spectators.every(p => p.committedRoute === null));
+  s.start(); s.update(STADIUM_STEP);
+  const before = s.spectators.map(p => JSON.stringify(p.committedRoute));
+  assert.ok(s.spectators.every(p => p.committedRoute));
+  r.setClosed("ramp-west", true);
+  s.refreshRoutes();
+  assert.deepEqual(s.spectators.map(p => JSON.stringify(p.committedRoute)), before);
+  assert.ok(s.spectators.every(p => p.replacementReason === null));
+  let sawQueue = false;
+  for (let i = 0; i < 9000 && s.running && !sawQueue; i++) {
+    s.update(STADIUM_STEP);
+    sawQueue = s.snapshot().transfers["ramp-east"].waiting > 0;
+  }
+  assert.ok(sawQueue);
+  assert.deepEqual(s.spectators.map(p => JSON.stringify(p.committedRoute)), before);
+});
+
+test("an affected committed route is replaced, while disconnection waits for reopening", () => {
+  const r = new StadiumRouter();
+  const s = new StadiumSimulation(r, { count: 2, sections: ["section-101"], profileMode: "uniform" });
+  s.start(); s.update(STADIUM_STEP); s.pause();
+  const firstGate = s.spectators[0].committedRoute!.gateId;
+  r.setClosed(firstGate, true); s.refreshRoutes();
+  assert.ok(s.spectators.every(p => p.committedRoute?.gateId !== firstGate));
+  assert.ok(s.spectators.every(p => p.replacementReason?.startsWith("Gate closed:")));
+  for (const gate of STADIUM.gates) r.setClosed(gate.id, true);
+  s.refreshRoutes();
+  assert.ok(s.spectators.every(p => p.stranded && p.committedRoute === null && p.replacementReason === "Route disconnected"));
+  r.setClosed("gate-east", false); s.refreshRoutes();
+  assert.ok(s.spectators.every(p => !p.stranded && p.committedRoute?.gateId === "gate-east"));
+  assert.ok(s.spectators.every(p => p.replacementReason === "Connectivity restored"));
+});
+
+test("profile speed edits stay unplanned until that spectator is ready to choose", () => {
+  const s = new StadiumSimulation(undefined, { count: 2, sections: ["section-101"] });
+  const untouched = s.spectators[1].committedRoute;
+  const edited = s.spectators[0];
+  assert.equal(edited.committedRoute, null);
+  s.setProfile(edited.id, { ...edited.profile, reactionSeconds: 0, speedOverride: 0.45 });
+  assert.equal(s.spectators[1].committedRoute, untouched);
+  assert.equal(edited.committedRoute, null, "editing before start must not make the route decision");
+  s.start(); s.update(STADIUM_STEP);
+  assert.ok(edited.committedRoute);
+  const expected = s.router.route(edited.sectionId, "any", { walkingSpeedMetersPerSecond: 0.45 })!;
+  assert.deepEqual(edited.committedRoute, expected);
+  assert.equal(edited.routeProgress, 0);
+});
+
+test("each spectator chooses a personal route only when their response delay expires", () => {
+  const s = new StadiumSimulation(undefined, { count: 2, sections: ["section-101"], profileMode: "uniform" });
+  const first = s.spectators[0], second = s.spectators[1];
+  s.setProfile(first.id, { ...first.profile, reactionSeconds: 0 });
+  s.setProfile(second.id, { ...second.profile, reactionSeconds: 2 });
+  assert.equal(first.committedRoute, null); assert.equal(second.committedRoute, null);
+  s.start(); s.update(STADIUM_STEP);
+  assert.ok(first.committedRoute); assert.equal(second.committedRoute, null);
+  advance(s, 2);
+  assert.ok(second.committedRoute);
+});
+
+test("read-only render frames expose routes and transfer progress without advancing or changing outcomes", () => {
+  const options = { count: 20, sections: ["section-217"], seed: 549, profileMode: "uniform" as const };
+  const baseline = new StadiumSimulation(undefined, options), observed = new StadiumSimulation(undefined, options);
+  baseline.start(); observed.start();
+  for (let i = 0; i < 2400 && baseline.running; i++) {
+    baseline.update(STADIUM_STEP); observed.update(STADIUM_STEP);
+    const before = JSON.stringify([observed.time, observed.spectators, observed.events]);
+    const frame = observed.renderFrame();
+    assert.equal(JSON.stringify([observed.time, observed.spectators, observed.events]), before);
+    assert.equal(frame.people.length, options.count);
+    assert.equal(frame.population, frame.people.length);
+    assert.ok(frame.people.every(person => person.targetGateId && person.remainingRoute.length || person.movementState === "evacuated"));
+    const inTransfer = frame.people.find(person => person.transferEdgeId);
+    if (inTransfer) assert.ok(inTransfer.transferProgress! >= 0 && inTransfer.transferProgress! <= 1);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify([observed.time, observed.spectators, observed.events])),
+    JSON.parse(JSON.stringify([baseline.time, baseline.spectators, baseline.events])));
+});
+
 test("reducing capacity during a paused run immediately sets the next admission interval", () => {
   const r = new StadiumRouter();
   const s = new StadiumSimulation(r, { count: 20, sections: ["section-217"] }); s.start();

@@ -2,6 +2,9 @@ import { STADIUM, STADIUM_SURFACES, surfaceName, type StadiumFeature, type Stadi
 import { STADIUM_ASSUMPTIONS, type NavigationEdge } from "../maps/stadiumNavigation";
 import { StadiumRouter, type StadiumRoute } from "../pathfinding/StadiumRouter";
 import { StadiumCrowd } from "./StadiumCrowd";
+import type { StadiumRenderFrame } from "../simulation/StadiumSimulation";
+import type { StadiumViewLevel, StadiumViewMode } from "./StadiumVisuals";
+import { physicalToSvg } from "../simulation/StadiumPhysicalGeometry";
 
 /** Route inspection and live movement share the same editable network. */
 export class StadiumRoutes {
@@ -13,12 +16,14 @@ export class StadiumRoutes {
   private controlId: string | undefined;
   private showNetwork = true;
   private showConnections = true;
+  private referenceVisible = false;
 
-  constructor(private root: HTMLElement, private svg: SVGSVGElement, selectFeature: (id: string) => void) {
+  constructor(private root: HTMLElement, private svg: SVGSVGElement, selectFeature: (id: string) => void,
+    selectPerson: (id: number) => void) {
     root.querySelector("#stadium-route-tools")!.innerHTML = `
       <div><label for="stadium-route-from">Route start section</label><select id="stadium-route-from">
         ${STADIUM_SURFACES.filter(s => s.id.startsWith("upper") || s.id === "lower-bowl").map(s => `<optgroup label="${s.name}">${STADIUM.sections.filter(section => section.surfaceId === s.id).map(section => `<option value="${section.id}">${section.name}</option>`).join("")}</optgroup>`).join("")}
-      </select></div><div><label for="stadium-route-gate">Destination gate</label><select id="stadium-route-gate"><option value="any">Any open gate · lowest assumed time</option>
+      </select></div><div><label for="stadium-route-gate">Destination gate</label><select id="stadium-route-gate"><option value="any">Any open gate · lowest reference-speed time</option>
         ${STADIUM.gates.map(g => `<option value="${g.id}">${g.name}</option>`).join("")}</select></div>
       <label class="check"><input id="stadium-walkways" type="checkbox" checked> Show walkable routes</label>`;
     root.querySelector<HTMLSelectElement>("#stadium-route-from")!.value = this.from;
@@ -70,7 +75,7 @@ export class StadiumRoutes {
     root.querySelector("#stadium-reset-network")!.addEventListener("click", () => {
       this.crowd.pause(); this.router.reset(); this.crowd.networkChanged(); this.updateControl(); this.render();
     });
-    this.crowd = new StadiumCrowd(root, svg, this.router);
+    this.crowd = new StadiumCrowd(root, svg, this.router, selectPerson);
     this.updateControl();
     this.render();
   }
@@ -84,6 +89,15 @@ export class StadiumRoutes {
 
   update(delta: number, active: boolean) { this.crowd.update(delta, active); }
   pause() { this.crowd.pause(); }
+  renderFrame(): StadiumRenderFrame { return this.crowd.renderFrame(); }
+  getRouter() { return this.router; }
+  setViewMode(mode: StadiumViewMode) { this.crowd.setViewMode(mode); }
+  setViewLevel(level: StadiumViewLevel) { this.crowd.setViewLevel(level); }
+  selectPerson(id: number) { this.crowd.selectPerson(id); }
+  clearPersonSelection() { this.crowd.clearPersonSelection(); }
+  selectSection(id: string | null) { this.crowd.selectSection(id); }
+  get selectedPersonId() { return this.crowd.selectedPersonId; }
+  setReferenceVisible(value: boolean) { this.referenceVisible = value; this.render(); }
 
   inspectFeature(feature?: StadiumFeature) {
     if (feature?.kind === "section") {
@@ -121,7 +135,8 @@ export class StadiumRoutes {
   }
 
   private line(edge: NavigationEdge): string {
-    return edge.points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+    return edge.points.map((p, i) => { const projected = physicalToSvg({ x: p.x, z: p.y });
+      return `${i ? "L" : "M"}${projected.x.toFixed(2)} ${projected.y.toFixed(2)}`; }).join(" ");
   }
 
   private itinerary(route: StadiumRoute): string {
@@ -145,7 +160,7 @@ export class StadiumRoutes {
     network.innerHTML = this.showNetwork ? this.router.network.edges.filter(e => this.visible(e) && (!e.transfer || (e.kind === "passage" && this.showConnections)) && e.kind !== "gate").map(e =>
       `<path data-network-edge="${e.id}" class="stadium-network-path ${e.transfer ? "is-transfer" : ""} ${this.router.isClosed(e.id) ? "is-closed" : ""}" d="${this.line(e)}"/>`).join("") : "";
     // Full route stays selected when layers or background overlays change.
-    this.svg.querySelector("#stadium-active-route")!.innerHTML = route ? route.steps.filter(step => this.visible(this.router.edges.get(step.edgeId)!)).map(step => {
+    this.svg.querySelector("#stadium-active-route")!.innerHTML = this.referenceVisible && route ? route.steps.filter(step => this.visible(this.router.edges.get(step.edgeId)!)).map(step => {
       const edge = this.router.edges.get(step.edgeId)!;
       return `<path data-route-edge="${edge.id}" class="stadium-route-path ${edge.transfer ? "is-transfer" : ""}" d="${this.line(edge)}"/>`;
     }).join("") : "";
@@ -161,7 +176,7 @@ export class StadiumRoutes {
       : `No route from ${from.name} to ${this.gate === "any" ? "an open gate" : "the selected gate"}.`;
     status.classList.toggle("error", !route);
     this.root.querySelector("#stadium-route-measures")!.textContent = route
-      ? `Illustrative travel without queues: ${route.freeFlowSeconds.toFixed(1)} s · assumed walking distance ${route.assumedWalkMeters.toFixed(1)} m · transfers ${route.transferSeconds.toFixed(1)} s`
+      ? `Reference-speed travel excluding queues: ${route.freeFlowSeconds.toFixed(1)} s · assumed walking distance ${route.assumedWalkMeters.toFixed(1)} m · transfers ${route.transferSeconds.toFixed(1)} s`
       : "Reopen a connection or gate, or choose another destination. See connectivity below for sections without any exit route.";
     this.root.querySelector("#stadium-route-layer-note")!.textContent = this.layer === "overview" ? "" : "Only this layer's portion is highlighted. Choose Overview to see the complete route.";
     this.root.querySelector("#stadium-route-steps")!.innerHTML = route ? this.itinerary(route) : "<li>No connected route.</li>";
@@ -173,4 +188,4 @@ export class StadiumRoutes {
   }
 }
 
-export const stadiumAssumptionsText = `All route geometry and dimensions are assumptions: ${STADIUM_ASSUMPTIONS.metersPerUnit} m per drawing unit; route-inspection reference speed ${STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond} m/s; aisles ${STADIUM_ASSUMPTIONS.aisleWidthMeters} m, access walks ${STADIUM_ASSUMPTIONS.walkwayWidthMeters} m, concourse ${STADIUM_ASSUMPTIONS.concourseWidthMeters} m wide. Individual profiles vary walking speed, response delay and body size. Continuous body-clearance checks and reserved junctions constrain movement; slower walkers can delay a queue. Transfer rates and minimum times remain enforced. Seat access and population profiles are synthetic. These are experimental inputs, not measured stadium dimensions or validated evacuation predictions.`;
+export const stadiumAssumptionsText = `All physical geometry and dimensions are explicit schematic assumptions. The published source drawing was initially converted at 0.2 m per source unit, then reoriented north-up. Route-inspection reference speed is ${STADIUM_ASSUMPTIONS.walkingSpeedMetersPerSecond} m/s; aisles are ${STADIUM_ASSUMPTIONS.aisleWidthMeters} m, access walks ${STADIUM_ASSUMPTIONS.walkwayWidthMeters} m, and the concourse ${STADIUM_ASSUMPTIONS.concourseWidthMeters} m wide. Individual profiles vary walking speed, response delay and body size. Continuous body-clearance checks and reserved junctions constrain movement; slower walkers can delay a queue. Transfer rates and physical-length-aware minimum times remain enforced. Seats and population profiles are synthetic. These are not surveyed dimensions or validated evacuation predictions.`;
