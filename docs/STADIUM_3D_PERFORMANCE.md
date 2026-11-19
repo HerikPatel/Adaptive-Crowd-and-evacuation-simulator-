@@ -49,8 +49,20 @@ Both remain above the documented 30 FPS target. The browser harness records `sta
 - People use instanced procedural figures at close range and dots at distance. Seated poses use seat state; walking stride uses simulation distance, so waiting and paused runs freeze without an independent animation clock. Destination color remains visible while white/red rings and a small marker communicate waiting, blockage, selection, and rerouting.
 - Transfer positions and elevations use the simulation's actual edge progress. Landing backpressure therefore stops the visible dot instead of starting an independent animation.
 - Physical paths, seats, elevations and distance sampling live in `StadiumPhysicalGeometry.ts` and are shared by routing, movement, 2D, and 3D. `Stadium3DGeometry.ts` contains presentation-only stadium form helpers. Generated connector decks, stair treads, landings and rails follow the actual navigation paths. Dimensions remain illustrative assumptions, not surveyed stadium measurements.
-- The default evacuation cutaway hides façade and landmark detail while retaining people, gates, connectors, and selected routes; Full architecture restores the exterior shell, scoreboard, and light towers.
+- The default evacuation cutaway hides the façade and light towers while retaining the south video board, people, gates, connectors, and selected routes; Full architecture restores the exterior shell and light towers.
 - Camera exploration is free by default. Selection never moves the camera. Following is explicit, manual interaction or any preset stops it, evacuation preserves the final viewpoint, and switching between 2D and 3D preserves camera and cutaway state.
 - Day and stadium-light modes change presentation lighting only. They do not pause, advance, or alter the simulation.
+
+## Presentation update — 2026-11-19
+
+The lower bowl now has open aisle breaks between bench rows. Concourse and transfer decks use the same path-aligned mesh helper, and a compact 3D overlay reports seated, walking, in-connection, waiting, and outside counts. A manual preset loads 1,000 spectators across all seating levels without starting the run. The south video board remains visible in the default cutaway.
+
+The focused Chromium benchmark measured 60.0 FPS / 3.80 ms for 100 spectators and 60.0 FPS / 4.50 ms for 1,000 spectators on the same M1 test laptop. Both exceed the 30 FPS target.
+
+## Architecture and camera update — 2026-11-19
+
+The lower-bowl aisles now have walkable-width surfaces, the upper-deck supports sit below the seating, and the exterior gate approaches have visible paved entries. The 3D status display separates seated spectators from people waiting in the circulation network. A Free camera control adds drag-to-look and keyboard flight while keeping the orbit presets available. The stadium-light setting uses a brighter ambient fill and softer floodlights for more even visibility.
+
+The focused Chromium benchmark measured 60.0 FPS / 4.31 ms for 100 spectators and 59.9 FPS / 4.75 ms for 1,000 spectators on the same M1 test laptop. Both remain above the 30 FPS target.
 
 The deterministic headless baseline script completed its 100-person, 1,000-person, closure, reopening and replay scenarios in 37.7 seconds of wall time on the same machine. That is simulation throughput and is intentionally reported separately from rendering FPS.

@@ -71,13 +71,13 @@ export class StadiumViewer {
           <g id="stadium-seating-detail" aria-hidden="true"></g><g id="stadium-network" aria-hidden="true"></g><g id="stadium-active-route" aria-hidden="true"></g><g id="stadium-committed-routes" aria-hidden="true"></g><g id="stadium-route-labels" aria-hidden="true"></g><g id="stadium-crowd-agents" aria-hidden="true"></g><g id="stadium-state-markers" aria-hidden="true"></g>
         </svg><div id="stadium-3d" class="stadium-3d" hidden><div id="stadium-3d-loading">Choose 3D to load the SHI Stadium-inspired scene.</div></div></div>
         <div id="stadium-3d-controls" class="stadium-3d-controls" hidden>
-          <div role="group" aria-label="3D camera"><button type="button" id="stadium-follow-person" aria-pressed="false" disabled>Follow selected person</button><button type="button" data-camera="reset">Reset</button><button type="button" data-camera="top-down">Top-down</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button></div>
+          <div role="group" aria-label="3D camera"><button type="button" id="stadium-free-camera" aria-pressed="false">Free camera</button><button type="button" id="stadium-follow-person" aria-pressed="false" disabled>Follow selected person</button><button type="button" data-camera="reset">Reset</button><button type="button" data-camera="top-down">Top-down</button><button type="button" data-camera="connections">Connectors</button><button type="button" data-camera="gates">Gates</button></div>
           <div class="stadium-lighting-controls" role="group" aria-label="3D lighting"><button type="button" data-lighting="day" aria-pressed="true">Day</button><button type="button" data-lighting="night" aria-pressed="false">Stadium lights</button></div>
           <div class="stadium-cutaway-controls" role="group" aria-label="3D structure"><button type="button" data-cutaway="true" aria-pressed="true">Evacuation cutaway</button><button type="button" data-cutaway="false" aria-pressed="false">Full architecture</button></div><output id="stadium-3d-performance"></output></div>
         <div id="stadium-3d-error" class="error" role="alert"><span id="stadium-3d-error-text"></span><button type="button" id="stadium-return-2d" hidden>Return to 2D</button></div>
         <div class="stadium-legend stadium-destination-legend">${Object.entries(STADIUM_DESTINATIONS).map(([id, gate]) => `<span data-gate-legend="${id}"><i class="swatch" style="background:${gate.color}"></i>${gate.label}</span>`).join("")}
           <span><i class="swatch neutral"></i>Not assigned</span><span><i class="swatch waiting"></i>Waiting outline</span><span><i class="swatch rerouting"></i>Rerouting marker</span><span><i class="swatch blocked"></i>Blocked route</span></div>
-        <p class="stadium-map-help">The 2D map remains schematic. The 3D scene is a SHI Stadium-inspired visual projection; orbit with drag and zoom with the wheel or trackpad.</p>
+        <p class="stadium-map-help">Drag to orbit, right-drag to pan, and scroll to zoom. Use Free camera to explore with the keyboard and mouse.</p>
         <details id="stadium-measurements" class="stadium-collapsible"><summary>Detailed measurements</summary><section id="stadium-crowd-stats" class="stadium-route-summary" aria-label="Stadium live measurements"></section></details>
       </section><aside class="stadium-details" aria-label="Map details">
         <span class="eyebrow">CONTEXTUAL INSPECTOR</span>
@@ -150,6 +150,11 @@ export class StadiumViewer {
       this.threeD?.preset(button.dataset.camera as "reset" | "top-down" | "connections" | "gates");
       this.updateFollowControl();
     }));
+    root.querySelector<HTMLButtonElement>("#stadium-free-camera")!.addEventListener("click", () => {
+      if (!this.threeD) return;
+      this.threeD.setFreeCamera(!this.threeD.isFlying);
+      this.updateFollowControl();
+    });
     root.querySelector<HTMLButtonElement>("#stadium-follow-person")!.addEventListener("click", () => {
       const id = this.routes.selectedPersonId;
       const person = id === null ? undefined : this.routes.renderFrame().people.find(candidate => candidate.id === id);
@@ -349,6 +354,7 @@ export class StadiumViewer {
         return;
       }
     }
+    if (mode === "2d") this.threeD?.suspendCameraInput();
     this.viewMode = mode; this.routes.setViewMode(mode);
     this.svg.toggleAttribute("hidden", mode !== "2d");
     this.root.querySelector<HTMLElement>("#stadium-3d")!.hidden = mode !== "3d";
@@ -368,6 +374,7 @@ export class StadiumViewer {
   }
 
   private updateFollowControl() {
+    this.root.querySelector("#stadium-free-camera")?.setAttribute("aria-pressed", String(this.threeD?.isFlying ?? false));
     const button = this.root.querySelector<HTMLButtonElement>("#stadium-follow-person");
     if (!button) return;
     const id = this.routes.selectedPersonId;

@@ -350,7 +350,11 @@ progress {
 .stadium-svg { display: block; width: 100%; aspect-ratio: 880 / 1200; background: #101c2b; touch-action: none; user-select: none; cursor: grab; }
 .stadium-svg:active { cursor: grabbing; }
 .stadium-view-stack { position: relative; min-height: 320px; }
-.stadium-3d { width: 100%; height: clamp(480px, 64vw, 780px); background: linear-gradient(#91b9da, #d7d1c1); }
+.stadium-3d { position: relative; width: 100%; height: clamp(480px, 64vw, 780px); background: linear-gradient(#91b9da, #d7d1c1); }
+.stadium-3d-hud { position: absolute; top: 12px; left: 12px; max-width: calc(100% - 24px); padding: 8px 12px; border: 1px solid #b7cad7; border-radius: 8px; color: #f4f9fc; background: #102637e8; font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.stadium-3d-legend { position: absolute; right: 12px; bottom: 12px; max-width: calc(100% - 24px); padding: 7px 10px; border-radius: 6px; color: #f4f9fc; background: #102637df; font-size: 11px; pointer-events: none; }
+.stadium-3d-fly-help { position: absolute; left: 12px; bottom: 48px; max-width: calc(100% - 24px); padding: 7px 10px; border-radius: 6px; color: #e1fff5; background: #123e3a; font-size: 12px; pointer-events: none; }
+#stadium-free-camera[aria-pressed="true"] { color: #d7fff2; background: #24574f; border-color: #65d7c2; }
 .stadium-3d canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 #stadium-3d-loading { color: #24323e; padding: 24px; }
 .stadium-3d-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-top: 1px solid #263747; }
