@@ -31,7 +31,7 @@ export class StadiumCrowd {
     this.simulation = new StadiumSimulation(router);
     root.querySelector("#stadium-crowd-controls")!.innerHTML = `
       <form id="stadium-run-form" class="stadium-run-form">
-        <div class="stadium-run-actions"><button type="submit" id="stadium-run-start" class="primary">Start stadium run</button><button type="button" id="stadium-run-pause" disabled>Pause</button><button type="button" id="stadium-run-reset">Reset crowd</button>
+        <div class="stadium-run-actions"><button type="submit" id="stadium-run-start" class="primary">Start stadium run</button><button type="button" id="stadium-run-pause" disabled>Pause</button><button type="button" id="stadium-run-reset">Reset crowd</button><button type="button" id="stadium-demo-crowd">Load 1,000 spectators</button>
           <label for="stadium-speed">Playback speed</label><select id="stadium-speed"><option value="1">1×</option><option value="4">4×</option><option value="8">8×</option></select></div>
         <details class="stadium-config-panel"><summary>Crowd configuration</summary><div class="stadium-config-grid">
           <div><label for="stadium-population">Spectators</label><input id="stadium-population" type="number" min="1" max="1000" step="1" value="100" required aria-describedby="stadium-population-help"></div>
@@ -119,6 +119,9 @@ export class StadiumCrowd {
     });
     root.querySelector("#stadium-run-pause")!.addEventListener("click", () => this.pause());
     root.querySelector("#stadium-run-reset")!.addEventListener("click", () => this.tryAction(() => this.reset(this.readOptions())));
+    root.querySelector("#stadium-demo-crowd")!.addEventListener("click", () => this.tryAction(() => {
+      this.origin.value = "all"; this.population.value = "1000"; this.updateLimit(); this.reset(this.readOptions());
+    }));
     this.speed.addEventListener("change", () => { this.accumulator = 0; });
     // Pause synchronously on navigation, including rapid back/forward visits between animation frames.
     root.querySelector("[data-menu]")!.addEventListener("click", () => this.pause());

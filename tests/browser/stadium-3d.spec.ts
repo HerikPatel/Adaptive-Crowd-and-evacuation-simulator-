@@ -27,6 +27,7 @@ test("2D and lazy 3D share one running simulation, selection, filters and camera
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-cutaway", "true");
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-camera", "reset");
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-visible-routes", "1");
+  await expect(page.locator(".stadium-3d-hud")).toContainText("Outside 0/12");
   const follow = page.getByRole("button", { name: "Follow selected person", exact: true });
   await expect(follow).toBeEnabled();
   await follow.click();
@@ -64,6 +65,31 @@ test("2D and lazy 3D share one running simulation, selection, filters and camera
   await expect(page.locator("#stadium-3d")).toHaveAttribute("data-camera", "connections");
   await page.screenshot({ path: info.outputPath("stadium-3d-linked.png"), fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test("manual crowd preset loads seated spectators without starting the run", async ({ page }) => {
+  await openStadium(page);
+  await page.getByRole("button", { name: "Load 1,000 spectators" }).click();
+  await expect(page.getByLabel("Spectators", { exact: true })).toHaveValue("1000");
+  await expect(page.getByLabel("Starting seats", { exact: true })).toHaveValue("all");
+  await expect(page.locator("#stadium-run-status")).toHaveText("Ready");
+  await page.getByRole("button", { name: "Architectural 3D", exact: true }).click();
+  await expect(page.locator(".stadium-3d-hud")).toContainText("Seated 1000");
+});
+
+test("free camera explores from the current view and presets restore orbit controls", async ({ page }) => {
+  await openStadium(page);
+  await page.getByRole("button", { name: "Architectural 3D", exact: true }).click();
+  const view = page.locator("#stadium-3d");
+  const canvas = view.locator("canvas");
+  await page.getByRole("button", { name: "Free camera", exact: true }).click();
+  await expect(view).toHaveAttribute("data-camera-mode", "fly");
+  await expect(page.locator("#stadium-3d-fly-help")).toBeVisible();
+  await canvas.press("KeyW");
+  await page.getByRole("button", { name: "Top-down", exact: true }).click();
+  await expect(view).toHaveAttribute("data-camera-mode", "orbit");
+  await expect(view).toHaveAttribute("data-camera", "top-down");
+  await expect(page.locator("#stadium-3d-fly-help")).toBeHidden();
 });
 
 test("3D initialization failure leaves the 2D simulator usable", async ({ page }) => {
